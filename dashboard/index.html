@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CuratorVault Dashboard</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="logo">CV</div>
+      <div>
+        <h1>CuratorVault</h1>
+        <p>Mutual funds for Uniswap v4 liquidity</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div id="network" class="badge">Not connected</div>
+      <button id="connectBtn" class="btn primary">Connect Wallet</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="configSection" class="card">
+      <h2>Contract Addresses</h2>
+      <p class="muted">Paste addresses from the deploy script output.</p>
+      <div class="grid">
+        <label>Vault<input id="vaultAddr" placeholder="0x..." /></label>
+        <label>Hook<input id="hookAddr" placeholder="0x..." /></label>
+        <label>Strategy<input id="strategyAddr" placeholder="0x..." /></label>
+        <label>Verifier<input id="verifierAddr" placeholder="0x..." /></label>
+        <label>Registry<input id="registryAddr" placeholder="0x..." /></label>
+        <label>Token0<input id="token0Addr" placeholder="0x..." /></label>
+        <label>Token1<input id="token1Addr" placeholder="0x..." /></label>
+      </div>
+      <button id="saveConfigBtn" class="btn">Save &amp; Load</button>
+    </section>
+
+    <section class="grid-2">
+      <div class="card">
+        <h2>Vault Overview</h2>
+        <div class="stat"><span>Your shares</span><strong id="statShares">—</strong></div>
+        <div class="stat"><span>Total supply</span><strong id="statSupply">—</strong></div>
+        <div class="stat"><span>NAV / share</span><strong id="statNav">—</strong></div>
+        <div class="stat"><span>High-water mark</span><strong id="statHwm">—</strong></div>
+        <div class="stat"><span>HODL / share</span><strong id="statHodl">—</strong></div>
+        <div class="stat"><span>Performance fees</span><strong id="statFees">—</strong></div>
+        <div class="stat"><span>Position active</span><strong id="statPosition">—</strong></div>
+      </div>
+
+      <div class="card">
+        <h2>Hook / Brevis State</h2>
+        <div class="stat"><span>Verified score</span><strong id="statScore">—</strong></div>
+        <div class="stat"><span>Curator approved</span><strong id="statApproved">—</strong></div>
+        <div class="stat"><span>Base fee</span><strong id="statBaseFee">—</strong></div>
+        <div class="stat"><span>Max fee</span><strong id="statMaxFee">—</strong></div>
+        <div class="stat"><span>Pool EMA price</span><strong id="statEma">—</strong></div>
+        <div class="stat"><span>Liquidity events</span><strong id="statEvents">—</strong></div>
+      </div>
+    </section>
+
+    <section class="grid-3">
+      <div class="card">
+        <h2>Deposit</h2>
+        <label>Token0 amount<input id="deposit0" type="number" placeholder="10000" /></label>
+        <label>Token1 amount<input id="deposit1" type="number" placeholder="10000" /></label>
+        <button id="approve0Btn" class="btn">Approve Token0</button>
+        <button id="approve1Btn" class="btn">Approve Token1</button>
+        <button id="depositBtn" class="btn primary">Deposit</button>
+      </div>
+
+      <div class="card">
+        <h2>Withdraw</h2>
+        <label>Shares<input id="withdrawShares" type="number" placeholder="1000" /></label>
+        <button id="withdrawBtn" class="btn primary">Withdraw</button>
+      </div>
+
+      <div class="card">
+        <h2>Curator Actions</h2>
+        <label>Lower tick<input id="lowerTick" type="number" value="-60" /></label>
+        <label>Upper tick<input id="upperTick" type="number" value="60" /></label>
+        <label>Liquidity<input id="liq" type="number" placeholder="3e24" /></label>
+        <button id="initializeBtn" class="btn">Initialize Position</button>
+        <button id="rebalanceBtn" class="btn">Rebalance</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Brevis Verification (Mock)</h2>
+      <p class="muted">Stake for the strategy address, then submit its performance score.</p>
+      <label>Stake amount (Token0)<input id="stakeAmount" type="number" value="200" /></label>
+      <button id="stakeBtn" class="btn">Approve &amp; Stake</button>
+      <label>Score<input id="score" type="number" value="90" /></label>
+      <button id="verifyBtn" class="btn">Submit Verification</button>
+    </section>
+
+    <div id="status" class="status"></div>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
