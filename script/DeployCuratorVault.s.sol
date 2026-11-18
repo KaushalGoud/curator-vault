@@ -47,13 +47,16 @@ contract DeployCuratorVault is Script {
         d.token0 = t0;
         d.token1 = t1;
 
-        d.hook = _deployHook(deployerAddr, d.manager);
+        uint256 minRebalanceInterval = vm.envOr("MIN_REBALANCE_INTERVAL", uint256(1 hours));
+        uint256 strategyCooldown = vm.envOr("STRATEGY_COOLDOWN", uint256(1 hours));
+
+        d.hook = _deployHook(deployerAddr, d.manager, minRebalanceInterval);
 
         PoolKey memory key = _makePoolKey(address(t0), address(t1), d.hook);
         d.manager.initialize(key, TickMath.getSqrtPriceAtTick(0));
 
         d.vault = new CuratorVault(d.manager, d.hook, key, deployerAddr, 1000);
-        d.strategy = new SimpleRangeStrategy(d.vault, deployerAddr, 1000, 1 hours, 500);
+        d.strategy = new SimpleRangeStrategy(d.vault, deployerAddr, 1000, strategyCooldown, 500);
         d.verifier = new MockBrevisVerifier(d.hook);
         d.registry = new CuratorRegistry(IERC20(address(t0)), deployerAddr, 100e18);
 
@@ -71,7 +74,10 @@ contract DeployCuratorVault is Script {
         console2.log("Registry:", address(d.registry));
     }
 
-    function _deployHook(address owner, PoolManager manager) internal returns (CuratorVaultHook hook) {
+    function _deployHook(address owner, PoolManager manager, uint256 minRebalanceInterval)
+        internal
+        returns (CuratorVaultHook hook)
+    {
         bytes memory code = abi.encodePacked(
             type(CuratorVaultHook).creationCode,
             abi.encode(
@@ -81,7 +87,7 @@ contract DeployCuratorVault is Script {
                 uint24(3000),
                 uint24(20),
                 int24(1000),
-                uint256(1 hours),
+                minRebalanceInterval,
                 uint256(20)
             )
         );

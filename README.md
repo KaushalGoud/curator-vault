@@ -44,7 +44,7 @@ export PRIVATE_KEY=0x...
 forge script script/DeployCuratorVault.s.sol --rpc-url <RPC> --broadcast
 ```
 
-The script mines a CREATE2 salt so the hook address ends in the required permission bits, deploys PoolManager + test tokens + hook + vault + strategy + verifier + registry, initializes the pool with `LPFeeLibrary.DYNAMIC_FEE_FLAG`, registers the supported pool, and wires all contracts.
+The script mines a CREATE2 salt so the hook address ends in the required permission bits, deploys PoolManager + test tokens + hook + vault + strategy + verifier + registry, initializes the pool with `LPFeeLibrary.DYNAMIC_FEE_FLAG`, registers the supported pool, and wires all contracts. `MIN_REBALANCE_INTERVAL` and `STRATEGY_COOLDOWN` default to `1 hours` and can be shortened for testnet demos.
 
 For local simulation (no broadcast):
 
