@@ -1,0 +1,6 @@
+out/
+cache/
+brevis/app/node_modules/
+brevis/app/dist/
+.env
+*.log

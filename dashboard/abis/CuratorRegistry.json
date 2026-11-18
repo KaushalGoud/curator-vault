@@ -175,6 +175,24 @@
   },
   {
     "type": "function",
+    "name": "stakeFor",
+    "inputs": [
+      {
+        "name": "curator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "stakeOf",
     "inputs": [
       {

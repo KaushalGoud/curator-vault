@@ -68,7 +68,7 @@ contract CuratorVaultHook is IHooks {
     event VerifierSet(address verifier);
     event PoolSupported(PoolId indexed id);
     event VerificationUpdated(address indexed curator, uint256 score);
-    event RebalanceExecuted(PoolId indexed id, int24 tickLower, int24 tickUpper);
+    event RebalanceExecuted(PoolId indexed id, address indexed curator, int24 tickLower, int24 tickUpper);
     event DynamicFeeSet(PoolId indexed id, uint24 fee);
     event RegistrySet(address registry);
     event FeeAuthorized(PoolId indexed id, uint256 sharePrice, uint256 benchmark, uint256 allowedBps);
@@ -191,7 +191,7 @@ contract CuratorVaultHook is IHooks {
         if (!_curatorApproved(strategy)) revert UnverifiedCurator();
         lastRebalance = block.timestamp;
         totalLiquidityEvents++;
-        emit RebalanceExecuted(id, params.tickLower, params.tickUpper);
+        emit RebalanceExecuted(id, strategy, params.tickLower, params.tickUpper);
         return IHooks.beforeAddLiquidity.selector;
     }
 

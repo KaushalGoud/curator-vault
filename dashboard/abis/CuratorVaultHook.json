@@ -1408,6 +1408,12 @@
         "internalType": "PoolId"
       },
       {
+        "name": "curator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
         "name": "tickLower",
         "type": "int24",
         "indexed": false,

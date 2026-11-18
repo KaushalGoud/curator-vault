@@ -58,5 +58,5 @@
       "rpc": "http://127.0.0.1:8545"
     }
   ],
-  "recovery_generation": "0x471916b8b177e2ca633564e5d3132270dd533bff99fd2ea9dff219eb9bffea05"
+  "recovery_generation": "0xff386b84584d40d07234a6e1547ed1920e6a45c56180430919986d0a64ff185d"
 }
