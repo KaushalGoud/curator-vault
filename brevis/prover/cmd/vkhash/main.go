@@ -24,7 +24,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, _, vkHash, err := sdk.Setup(ccs, envOr("SRS_DIR", "$HOME/kzgsrs"), 16, 0, 0)
+	if os.Getenv("COMPILE_ONLY") != "" {
+		fmt.Println(ccs.GetNbConstraints())
+		return
+	}
+
+	maxReceipts, maxStorage, maxTransactions := app.Allocate()
+	dataPoints := sdk.DataPointsNextPowerOf2(maxReceipts + maxStorage + maxTransactions)
+	_, _, vkHash, err := sdk.Setup(
+		ccs,
+		envOr("SRS_DIR", "$HOME/kzgsrs"),
+		maxReceipts,
+		maxStorage,
+		dataPoints,
+	)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

@@ -6,6 +6,8 @@ replace github.com/consensys/gnark => github.com/celer-network/gnark v0.0.0-2024
 
 replace github.com/OpenAssetStandards/poseidon-goldilocks-go => github.com/brevis-network/poseidon-goldilocks-go v0.0.0-20240826082508-8017eb90f413
 
+replace github.com/brevis-network/brevis-sdk => ./third_party/brevis-sdk
+
 require github.com/brevis-network/brevis-sdk v0.3.12
 
 require (

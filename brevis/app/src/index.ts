@@ -18,6 +18,8 @@ const required = (name: string): string => {
 const optional = (name: string, fallback: string): string => process.env[name] || fallback;
 
 const ZK_MODE = 0;
+const EVENT_ID =
+  '0x7695179da897f34aafd4fd21192495edfbd07001ccf37cf3a8834e7fa5620077';
 
 const REQUEST_ABI = [
   'function sendRequest(bytes32 _proofId, uint64 _nonce, address _refundee, tuple(address target, uint64 gas) _callback, uint8 _option) payable',
@@ -25,41 +27,81 @@ const REQUEST_ABI = [
 
 async function main() {
   const prover = new Prover(optional('PROVER', 'localhost:33247'));
-  const gatewayUrl = optional('GATEWAY', 'appsdkv3.brevis.network:443');
+  const gatewayUrl = optional('GATEWAY', 'appsdkv2.brevis.network:9094');
   const brevis = new Brevis(gatewayUrl);
 
   const verifier = required('VERIFIER');
   const hook = required('HOOK');
   const strategy = required('STRATEGY');
   const minRebalances = optional('MIN_REBALANCES', '2');
-  const logPos = Number(optional('LOG_POS', '0'));
   const srcChainId = Number(optional('SRC_CHAIN_ID', '11155111'));
   const dstChainId = Number(optional('DST_CHAIN_ID', '11155111'));
   const partnerKey = optional('PARTNER_KEY', '');
   const brevisRequest = optional('BREVIS_REQUEST', '0x841ce48F9446C8E281D3F1444cB859b4A6D0738C');
   const callbackGas = Number(optional('CALLBACK_GAS', '500000'));
 
-  const txHashes = required('TX_HASHES')
+  const baseTxHashes = required('TX_HASHES')
     .split(',')
     .map((tx) => tx.trim())
     .filter((tx) => tx.length > 0);
+  const baseLogPositions = optional('LOG_POS', '0')
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value >= 0);
+  const maxReceipts = Number(optional('MAX_RECEIPTS', '32'));
+
+  if (baseTxHashes.length === 0) throw new Error('TX_HASHES is empty');
+  if (!Number.isInteger(maxReceipts) || maxReceipts <= 0) {
+    throw new Error('invalid MAX_RECEIPTS');
+  }
+  if (baseTxHashes.length > maxReceipts) throw new Error('too many TX_HASHES');
+  if (baseLogPositions.length === 1) {
+    while (baseLogPositions.length < baseTxHashes.length) {
+      baseLogPositions.push(baseLogPositions[0]);
+    }
+  }
+  if (baseLogPositions.length !== baseTxHashes.length) {
+    throw new Error('LOG_POS must have one value or one value per TX_HASH');
+  }
+
+  const fields = baseTxHashes.map((txHash, i) => ({
+    txHash,
+    logPos: baseLogPositions[i],
+    fieldIndex: 2,
+  }));
+  while (fields.length < maxReceipts) {
+    const idx = fields.length % baseTxHashes.length;
+    fields.push({
+      txHash: baseTxHashes[idx],
+      logPos: baseLogPositions[idx],
+      fieldIndex: 2,
+    });
+  }
 
   const proofReq = new ProofRequest();
-  for (const txHash of txHashes) {
-    if (!ethers.utils.isHexString(txHash) || ethers.utils.hexDataLength(txHash) !== 32) {
-      throw new Error(`invalid tx hash ${txHash}`);
+  for (let i = 0; i < fields.length; i++) {
+    const field = fields[i];
+    if (
+      !ethers.utils.isHexString(field.txHash) ||
+      ethers.utils.hexDataLength(field.txHash) !== 32
+    ) {
+      throw new Error(`invalid tx hash ${field.txHash}`);
     }
     proofReq.addReceipt(
       new ReceiptData({
-        tx_hash: txHash,
+        tx_hash: field.txHash,
         fields: [
           new Field({
-            log_pos: logPos,
+            contract: hook,
+            log_index: field.logPos,
+            event_id: EVENT_ID,
             is_topic: true,
-            field_index: 2,
+            field_index: field.fieldIndex,
+            value: strategy,
           }),
         ],
       }),
+      i,
     );
   }
 

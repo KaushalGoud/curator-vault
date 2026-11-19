@@ -67,7 +67,7 @@ export BREVIS_VK_HASH=<vk hash from prover setup>
 forge script script/DeployBrevisVerifier.s.sol --rpc-url <RPC> --broadcast
 ```
 
-The script defaults to the legacy Sepolia `BrevisRequest` at `0x841ce48F9446C8E281D3F1444cB859b4A6D0738C`; override with `BREVIS_REQUEST` for another supported network. The current production-style Brevis deployment uses `BrevisRequest` at `0x91540fe35a245ba83459f6410c86f1aec309b290` on Arbitrum with Ethereum-mainnet source data.
+The script defaults to the legacy Sepolia `BrevisRequest` at `0x841ce48F9446C8E281D3F1444cB859b4A6D0738C`; override with `BREVIS_REQUEST` for another supported network. The legacy path uses `brevis-sdk-typescript` 1.2.5 with `GATEWAY=appsdkv2.brevis.network:9094`; the current production-style Brevis deployment uses Go SDK 0.3.17+, `appsdkv3.brevis.network:443`, and `BrevisRequest` at `0x91540fe35a245ba83459f6410c86f1aec309b290` on Arbitrum with Ethereum-mainnet source data. During final testing the legacy gateway returned HTTP 502 at `PrepareQuery`, so the app proof was generated locally but the final Brevis proof/approval remained pending.
 
 Run the prover service:
 
