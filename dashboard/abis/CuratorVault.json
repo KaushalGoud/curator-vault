@@ -165,6 +165,32 @@
   },
   {
     "type": "function",
+    "name": "claimPerformanceFees",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "claimableFees",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "curator",
     "inputs": [],
     "outputs": [
@@ -852,6 +878,25 @@
   },
   {
     "type": "event",
+    "name": "PerformanceFeesClaimed",
+    "inputs": [
+      {
+        "name": "curator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "PositionAdded",
     "inputs": [
       {
@@ -1020,6 +1065,11 @@
   },
   {
     "type": "error",
+    "name": "AumCapExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "DeadlineExpired",
     "inputs": []
   },
@@ -1131,12 +1181,22 @@
   },
   {
     "type": "error",
+    "name": "NoFees",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NoPosition",
     "inputs": []
   },
   {
     "type": "error",
     "name": "OnlyStrategy",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "Reentrant",
     "inputs": []
   },
   {

@@ -3,7 +3,6 @@ import { BrowserProvider, Contract, formatUnits, parseUnits } from "https://cdn.
 const VAULT_ABI = await (await fetch("./abis/CuratorVault.json")).json();
 const HOOK_ABI = await (await fetch("./abis/CuratorVaultHook.json")).json();
 const STRATEGY_ABI = await (await fetch("./abis/SimpleRangeStrategy.json")).json();
-const VERIFIER_ABI = await (await fetch("./abis/MockBrevisVerifier.json")).json();
 const REGISTRY_ABI = await (await fetch("./abis/CuratorRegistry.json")).json();
 const ERC20_ABI = [
   "function approve(address spender, uint256 amount) returns (bool)",
@@ -13,7 +12,15 @@ const ERC20_ABI = [
 ];
 
 const $ = (id) => document.getElementById(id);
-const CONFIG_KEYS = ["vaultAddr", "hookAddr", "strategyAddr", "verifierAddr", "registryAddr", "token0Addr", "token1Addr"];
+const CONFIG_KEYS = ["vaultAddr", "hookAddr", "strategyAddr", "registryAddr", "token0Addr", "token1Addr"];
+const SEPOLIA_DEFAULTS = {
+  vaultAddr: "0x1b45334925913bA2f48DFf2dDCe5E6a05f47d138",
+  hookAddr: "0x9ea63C10324F2E448175f7102Dc59cF2F69Ecfc0",
+  strategyAddr: "0xA765D2F5Bb53daf46bD215b412623057BaEA9DC5",
+  registryAddr: "0x77278f63c0F253F7255eEeB2305D5ea85f5EaF94",
+  token0Addr: "0x0BfDc19147ae322E9f94711f903a07869E1cCefa",
+  token1Addr: "0xF5f9989Ad5eCeA50c7706e1C3fce0e74051870eF",
+};
 let provider, signer, userAddress;
 
 function status(msg, type = "") {
@@ -48,7 +55,6 @@ function contracts() {
     vault: new Contract(cfg("vaultAddr"), VAULT_ABI, signer || provider),
     hook: new Contract(cfg("hookAddr"), HOOK_ABI, signer || provider),
     strategy: new Contract(cfg("strategyAddr"), STRATEGY_ABI, signer || provider),
-    verifier: new Contract(cfg("verifierAddr"), VERIFIER_ABI, signer || provider),
     registry: new Contract(cfg("registryAddr"), REGISTRY_ABI, signer || provider),
     token0: new Contract(cfg("token0Addr"), ERC20_ABI, signer || provider),
     token1: new Contract(cfg("token1Addr"), ERC20_ABI, signer || provider),
@@ -62,30 +68,48 @@ async function refresh() {
   if (!requireConfig()) return;
   try {
     const c = contracts();
-    const [shares, supply, nav, hwm, hodl, fees, position, score, approved, baseFee, maxFee, ema, events] = await Promise.all([
+    const curatorAddr = await c.vault.curator();
+    const [shares, supply, nav, hwm, hodl, fees, claimable, position, score, approved, cap, stake, observations, baseFee, maxFee, ema, events, totalNav] = await Promise.all([
       c.vault.balanceOf(userAddress || "0x0000000000000000000000000000000000000001"),
       c.vault.totalSupply(),
       c.vault.navPerShare(),
       c.vault.highWaterMark(),
       c.vault.hodlPerShare(),
       c.vault.totalPerformanceFees(),
+      c.vault.claimableFees(curatorAddr),
       c.vault.hasPosition(),
-      c.hook.verifiedScore(cfg("strategyAddr")),
+      c.registry.reputation(cfg("strategyAddr")),
       c.registry.isApproved(cfg("strategyAddr")),
+      c.registry.aumCap(cfg("strategyAddr")),
+      c.registry.stakeOf(cfg("strategyAddr")),
+      c.registry.observations(cfg("strategyAddr")),
       c.hook.baseFee(),
       c.hook.maxFee(),
       c.hook.emaSqrtPriceX96(),
       c.hook.totalLiquidityEvents(),
+      c.vault.totalNav(),
     ]);
+
+    const aum = await c.registry.canManage(cfg("strategyAddr"), cfg("vaultAddr"), totalNav);
+    const alpha = nav > hodl ? ((nav - hodl) * 10000n) / hodl : hodl > nav ? -((hodl - nav) * 10000n) / hodl : 0n;
+    const utilization = cap > 0n ? (totalNav * 10000n) / cap : 0n;
+
     $("statShares").textContent = fmt(shares);
     $("statSupply").textContent = fmt(supply);
     $("statNav").textContent = fmt(nav);
     $("statHwm").textContent = fmt(hwm);
     $("statHodl").textContent = fmt(hodl);
+    $("statAlpha").textContent = `${alpha.toString()} bps`;
     $("statFees").textContent = fmt(fees);
+    $("statClaimable").textContent = fmt(claimable);
     $("statPosition").textContent = position ? "Yes" : "No";
     $("statScore").textContent = score.toString();
     $("statApproved").textContent = approved ? "Yes" : "No";
+    $("statStake").textContent = fmt(stake);
+    $("statAumCap").textContent = fmt(cap);
+    $("statUtilization").textContent = `${Number(utilization) / 100}%`;
+    $("statCanManage").textContent = aum ? "Yes" : "No";
+    $("statObservations").textContent = observations.toString();
     $("statBaseFee").textContent = baseFee.toString();
     $("statMaxFee").textContent = maxFee.toString();
     $("statEma").textContent = ema.toString();
@@ -172,9 +196,25 @@ $("stakeBtn").onclick = async () => {
     return c.registry.stakeFor(cfg("strategyAddr"), amt);
   }, "Stake for strategy");
 };
-$("verifyBtn").onclick = async () => {
+$("approveCuratorBtn").onclick = async () => {
   if (!requireConfig()) return;
-  await write(async () => contracts().verifier.submitScore(cfg("strategyAddr"), Number($("score").value)), "Verification");
+  await write(async () => contracts().registry.approve(cfg("strategyAddr")), "Bootstrap approve");
+};
+$("registerVaultBtn").onclick = async () => {
+  if (!requireConfig()) return;
+  await write(async () => contracts().registry.registerVault(cfg("strategyAddr"), cfg("vaultAddr")), "Register vault");
+};
+$("claimFeesBtn").onclick = async () => {
+  if (!requireConfig()) return;
+  await write(async () => contracts().vault.claimPerformanceFees(), "Claim performance fees");
+};
+
+$("resetConfigBtn").onclick = () => {
+  CONFIG_KEYS.forEach((k) => {
+    $(k).value = SEPOLIA_DEFAULTS[k];
+    localStorage.setItem(k, SEPOLIA_DEFAULTS[k]);
+  });
+  status("Sepolia defaults loaded", "success");
 };
 
 loadConfig();

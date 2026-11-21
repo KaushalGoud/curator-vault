@@ -13,13 +13,17 @@ import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 
 interface ICuratorRegistry {
     function isApproved(address curator) external view returns (bool);
+
+    function canManage(address curator, address vault, uint256 aum) external view returns (bool);
+
+    function recordPerformance(address curator, address vault, int256 alphaBps) external;
 }
 
 /// @title CuratorVaultHook
 /// @notice Uniswap v4 hook that enforces curator mandates at the pool level:
 /// only the CuratorVault may manage liquidity, range width and rebalance frequency are
 /// bounded on-chain, and a dynamic LP fee rises when price moves away from an EMA refPrice.
-/// The verified-curator score is written by a Brevis-style callback and gates who may act.
+/// Curator reputation is recorded from realized vault performance and gates who may act.
 contract CuratorVaultHook is IHooks {
     using PoolIdLibrary for PoolKey;
     using LPFeeLibrary for uint24;
@@ -29,7 +33,7 @@ contract CuratorVaultHook is IHooks {
     error UnverifiedCurator();
     error RangeTooWide();
     error RebalanceTooSoon();
-    error UnauthorizedVerifier();
+    error AlreadySet();
     error Unauthorized();
     error SamePool();
     error FeeNotAuthorized();
@@ -40,7 +44,6 @@ contract CuratorVaultHook is IHooks {
 
     address public vault;
     address public strategy;
-    address public verifier;
     address public registry;
 
     uint24 public baseFee;
@@ -56,7 +59,6 @@ contract CuratorVaultHook is IHooks {
     uint256 public lastEmaTimestamp;
     uint256 public emaWindow;
 
-    mapping(address => uint256) public verifiedScore;
     mapping(PoolId => bool) public supportedPool;
     mapping(PoolId => uint160) public poolEmaPrice;
 
@@ -65,9 +67,7 @@ contract CuratorVaultHook is IHooks {
 
     event VaultSet(address vault);
     event StrategySet(address strategy);
-    event VerifierSet(address verifier);
     event PoolSupported(PoolId indexed id);
-    event VerificationUpdated(address indexed curator, uint256 score);
     event RebalanceExecuted(PoolId indexed id, address indexed curator, int24 tickLower, int24 tickUpper);
     event DynamicFeeSet(PoolId indexed id, uint24 fee);
     event RegistrySet(address registry);
@@ -124,25 +124,19 @@ contract CuratorVaultHook is IHooks {
     }
 
     function setVault(address _vault) external onlyOwner {
-        if (vault != address(0)) revert UnauthorizedVerifier();
+        if (vault != address(0)) revert AlreadySet();
         vault = _vault;
         emit VaultSet(_vault);
     }
 
     function setStrategy(address _strategy) external onlyOwner {
-        if (strategy != address(0)) revert UnauthorizedVerifier();
+        if (strategy != address(0)) revert AlreadySet();
         strategy = _strategy;
         emit StrategySet(_strategy);
     }
 
-    function setVerifier(address _verifier) external onlyOwner {
-        if (verifier != address(0)) revert UnauthorizedVerifier();
-        verifier = _verifier;
-        emit VerifierSet(_verifier);
-    }
-
     function setRegistry(address _registry) external onlyOwner {
-        if (registry != address(0)) revert UnauthorizedVerifier();
+        if (registry != address(0)) revert AlreadySet();
         registry = _registry;
         emit RegistrySet(_registry);
     }
@@ -163,10 +157,14 @@ contract CuratorVaultHook is IHooks {
         emit PoolSupported(id);
     }
 
-    function submitVerification(address curator, uint256 score, bytes calldata) external {
-        if (msg.sender != verifier) revert UnauthorizedVerifier();
-        verifiedScore[curator] = score;
-        emit VerificationUpdated(curator, score);
+    function canManage(address curator, uint256 aum) external view returns (bool) {
+        if (registry == address(0)) return false;
+        return ICuratorRegistry(registry).canManage(curator, vault, aum);
+    }
+
+    function reportPerformance(address curator, int256 alphaBps) external {
+        if (msg.sender != vault) revert OnlyVault();
+        ICuratorRegistry(registry).recordPerformance(curator, vault, alphaBps);
     }
 
     function beforeInitialize(address, PoolKey calldata, uint160) external pure override returns (bytes4) {
@@ -321,7 +319,6 @@ contract CuratorVaultHook is IHooks {
     }
 
     function _curatorApproved(address who) internal view returns (bool) {
-        if (registry != address(0)) return ICuratorRegistry(registry).isApproved(who);
-        return verifiedScore[who] > 0;
+        return registry != address(0) && ICuratorRegistry(registry).isApproved(who);
     }
 }

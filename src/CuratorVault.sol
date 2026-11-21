@@ -32,6 +32,9 @@ contract CuratorVault is ERC20, IUnlockCallback {
     error DeadlineExpired();
     error MinSharesNotMet();
     error MinAmountNotMet();
+    error AumCapExceeded();
+    error NoFees();
+    error Reentrant();
 
     IPoolManager public immutable poolManager;
     CuratorVaultHook public immutable hook;
@@ -55,8 +58,10 @@ contract CuratorVault is ERC20, IUnlockCallback {
     uint256 public benchmark1;
 
     uint256 public totalPerformanceFees;
+    mapping(address => uint256) public claimableFees;
 
     bytes32 public constant SALT = keccak256("CuratorVault");
+    uint256 private locked = 1;
 
     event Deposited(address indexed user, uint256 amount0, uint256 amount1, uint256 shares);
     event Withdrawn(address indexed user, uint256 shares, uint256 amount0, uint256 amount1, uint256 perfFee);
@@ -66,6 +71,7 @@ contract CuratorVault is ERC20, IUnlockCallback {
     event CuratorSet(address curator);
     event StrategySet(address strategy);
     event HighWaterMarkUpdated(uint256 oldMark, uint256 newMark);
+    event PerformanceFeesClaimed(address indexed curator, uint256 amount);
 
     enum Action {
         ADD_LIQUIDITY,
@@ -97,6 +103,13 @@ contract CuratorVault is ERC20, IUnlockCallback {
         _;
     }
 
+    modifier nonReentrant() {
+        if (locked != 1) revert Reentrant();
+        locked = 2;
+        _;
+        locked = 1;
+    }
+
     function setStrategy(address _strategy) external {
         if (msg.sender != curator) revert Unauthorized();
         strategy = _strategy;
@@ -114,9 +127,19 @@ contract CuratorVault is ERC20, IUnlockCallback {
         hook.setSupportedPool(poolKey);
     }
 
+    function claimPerformanceFees() external nonReentrant {
+        uint256 amount = claimableFees[msg.sender];
+        if (amount == 0) revert NoFees();
+        claimableFees[msg.sender] = 0;
+        totalPerformanceFees -= amount;
+        IERC20(Currency.unwrap(poolKey.currency0)).safeTransfer(msg.sender, amount);
+        emit PerformanceFeesClaimed(msg.sender, amount);
+    }
+
     /// @notice Deposit both tokens and mint shares at current NAV per share.
     function deposit(uint256 amount0, uint256 amount1, uint256 minShares, uint256 deadline)
         external
+        nonReentrant
         returns (uint256 shares)
     {
         if (block.timestamp > deadline) revert DeadlineExpired();
@@ -128,6 +151,7 @@ contract CuratorVault is ERC20, IUnlockCallback {
         benchmark1 += amount1;
 
         uint256 value = amount0 + token1ToToken0(amount1);
+        if (!hook.canManage(strategy, totalNav() + value)) revert AumCapExceeded();
         uint256 supply = totalSupply() - 1;
         uint256 nav = totalNav();
         if (supply == 0) {
@@ -151,6 +175,7 @@ contract CuratorVault is ERC20, IUnlockCallback {
     /// @notice Burn shares and withdraw a proportional share of the vault assets.
     function withdraw(uint256 shares, uint256 minAmount0, uint256 minAmount1, uint256 deadline)
         external
+        nonReentrant
         returns (uint256 amount0, uint256 amount1, uint256 perfFee)
     {
         if (block.timestamp > deadline) revert DeadlineExpired();
@@ -191,6 +216,16 @@ contract CuratorVault is ERC20, IUnlockCallback {
     function chargePerformanceFee(uint256 shares, uint256 gross0, uint256 gross1) internal returns (uint256, uint256) {
         uint256 price = navPerShare();
         uint256 benchmark = hodlPerShare();
+        int256 alphaBps = 0;
+        if (benchmark > 0) {
+            if (price >= benchmark) {
+                alphaBps = int256(((price - benchmark) * 10_000) / benchmark);
+            } else {
+                alphaBps = -int256(((benchmark - price) * 10_000) / benchmark);
+            }
+        }
+        hook.reportPerformance(strategy, alphaBps);
+
         uint256 allowedBps = hook.authorizeFee(poolId, price, benchmark, performanceFeeBps);
         if (allowedBps == 0) return (gross0, 0);
 
@@ -204,6 +239,7 @@ contract CuratorVault is ERC20, IUnlockCallback {
                 gross0 -= feeToken0;
                 perfFee = feeToken0;
                 totalPerformanceFees += feeToken0;
+                claimableFees[curator] += feeToken0;
             }
         }
         uint256 old = highWaterMark;

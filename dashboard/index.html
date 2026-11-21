@@ -26,15 +26,15 @@
       <h2>Contract Addresses</h2>
       <p class="muted">Paste addresses from the deploy script output.</p>
       <div class="grid">
-        <label>Vault<input id="vaultAddr" placeholder="0x..." /></label>
-        <label>Hook<input id="hookAddr" placeholder="0x..." /></label>
-        <label>Strategy<input id="strategyAddr" placeholder="0x..." /></label>
-        <label>Verifier<input id="verifierAddr" placeholder="0x..." /></label>
-        <label>Registry<input id="registryAddr" placeholder="0x..." /></label>
-        <label>Token0<input id="token0Addr" placeholder="0x..." /></label>
-        <label>Token1<input id="token1Addr" placeholder="0x..." /></label>
+        <label>Vault<input id="vaultAddr" value="0x1b45334925913bA2f48DFf2dDCe5E6a05f47d138" /></label>
+        <label>Hook<input id="hookAddr" value="0x9ea63C10324F2E448175f7102Dc59cF2F69Ecfc0" /></label>
+        <label>Strategy<input id="strategyAddr" value="0xA765D2F5Bb53daf46bD215b412623057BaEA9DC5" /></label>
+        <label>Registry<input id="registryAddr" value="0x77278f63c0F253F7255eEeB2305D5ea85f5EaF94" /></label>
+        <label>Token0<input id="token0Addr" value="0x0BfDc19147ae322E9f94711f903a07869E1cCefa" /></label>
+        <label>Token1<input id="token1Addr" value="0xF5f9989Ad5eCeA50c7706e1C3fce0e74051870eF" /></label>
       </div>
       <button id="saveConfigBtn" class="btn">Save &amp; Load</button>
+      <button id="resetConfigBtn" class="btn">Use Sepolia Defaults</button>
     </section>
 
     <section class="grid-2">
@@ -45,14 +45,21 @@
         <div class="stat"><span>NAV / share</span><strong id="statNav">—</strong></div>
         <div class="stat"><span>High-water mark</span><strong id="statHwm">—</strong></div>
         <div class="stat"><span>HODL / share</span><strong id="statHodl">—</strong></div>
+        <div class="stat"><span>Alpha vs HODL</span><strong id="statAlpha">—</strong></div>
         <div class="stat"><span>Performance fees</span><strong id="statFees">—</strong></div>
+        <div class="stat"><span>Claimable fees</span><strong id="statClaimable">—</strong></div>
         <div class="stat"><span>Position active</span><strong id="statPosition">—</strong></div>
       </div>
 
       <div class="card">
-        <h2>Hook / Brevis State</h2>
-        <div class="stat"><span>Verified score</span><strong id="statScore">—</strong></div>
+        <h2>Curator Reputation</h2>
+        <div class="stat"><span>Reputation score</span><strong id="statScore">—</strong></div>
         <div class="stat"><span>Curator approved</span><strong id="statApproved">—</strong></div>
+        <div class="stat"><span>Stake</span><strong id="statStake">—</strong></div>
+        <div class="stat"><span>AUM cap</span><strong id="statAumCap">—</strong></div>
+        <div class="stat"><span>AUM utilization</span><strong id="statUtilization">—</strong></div>
+        <div class="stat"><span>Can accept deposits</span><strong id="statCanManage">—</strong></div>
+        <div class="stat"><span>Reports</span><strong id="statObservations">—</strong></div>
         <div class="stat"><span>Base fee</span><strong id="statBaseFee">—</strong></div>
         <div class="stat"><span>Max fee</span><strong id="statMaxFee">—</strong></div>
         <div class="stat"><span>Pool EMA price</span><strong id="statEma">—</strong></div>
@@ -83,16 +90,17 @@
         <label>Liquidity<input id="liq" type="number" placeholder="3e24" /></label>
         <button id="initializeBtn" class="btn">Initialize Position</button>
         <button id="rebalanceBtn" class="btn">Rebalance</button>
+        <button id="claimFeesBtn" class="btn">Claim Performance Fees</button>
       </div>
     </section>
 
     <section class="card">
-      <h2>Brevis Verification (Mock)</h2>
-      <p class="muted">Stake for the strategy address, then submit its performance score.</p>
+      <h2>Curator Onboarding</h2>
+      <p class="muted">Stake a locked bond, bootstrap approval, and register the vault. Performance reports then update reputation automatically on withdrawals.</p>
       <label>Stake amount (Token0)<input id="stakeAmount" type="number" value="200" /></label>
       <button id="stakeBtn" class="btn">Approve &amp; Stake</button>
-      <label>Score<input id="score" type="number" value="90" /></label>
-      <button id="verifyBtn" class="btn">Submit Verification</button>
+      <button id="approveCuratorBtn" class="btn">Bootstrap Approve</button>
+      <button id="registerVaultBtn" class="btn">Register Vault</button>
     </section>
 
     <div id="status" class="status"></div>

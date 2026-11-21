@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {Vm} from "forge-std/Vm.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
@@ -10,14 +9,12 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {LPFeeLibrary} from "v4-core/src/libraries/LPFeeLibrary.sol";
-import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {TestERC20} from "v4-core/src/test/TestERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {CREATE2Deployer} from "../src/mocks/CREATE2Deployer.sol";
 import {CuratorVaultHook} from "../src/CuratorVaultHook.sol";
 import {CuratorVault} from "../src/CuratorVault.sol";
 import {SimpleRangeStrategy} from "../src/SimpleRangeStrategy.sol";
-import {MockBrevisVerifier} from "../src/mocks/MockBrevisVerifier.sol";
 import {SwapHelper} from "../src/mocks/SwapHelper.sol";
 import {CuratorRegistry} from "../src/CuratorRegistry.sol";
 
@@ -26,7 +23,6 @@ contract CuratorVaultTest is Test {
     CuratorVaultHook hook;
     CuratorVault vault;
     SimpleRangeStrategy strategy;
-    MockBrevisVerifier verifier;
     CuratorRegistry registry;
     TestERC20 token0;
     TestERC20 token1;
@@ -74,8 +70,7 @@ contract CuratorVaultTest is Test {
 
         vault = new CuratorVault(manager, hook, key, curator, 1000);
         strategy = new SimpleRangeStrategy(vault, curator, 1000, 1 hours, 500);
-        verifier = new MockBrevisVerifier(hook);
-        registry = new CuratorRegistry(IERC20(address(token0)), address(this), 100e18);
+        registry = new CuratorRegistry(IERC20(address(token0)), address(this), 100e18, 40, 50);
 
         vm.startPrank(curator);
         vault.setStrategy(address(strategy));
@@ -83,11 +78,9 @@ contract CuratorVaultTest is Test {
 
         hook.setVault(address(vault));
         hook.setStrategy(address(strategy));
-        hook.setVerifier(address(verifier));
         hook.setRegistry(address(registry));
         hook.setMaxPerformanceFeeBps(1000);
-        verifier.setRegistry(registry);
-        registry.setVerifier(address(verifier));
+        registry.setReporter(address(hook));
         vm.prank(curator);
         vault.setSupportedPool();
 
@@ -121,10 +114,17 @@ contract CuratorVaultTest is Test {
     }
 
     function _verifyCurator() internal {
-        _stake(curator, 200e18);
-        _stake(address(strategy), 200e18);
-        verifier.submitScore(curator, 90);
-        verifier.submitScore(address(strategy), 90);
+        _stake(address(strategy), 1_000_000e18);
+        registry.approve(address(strategy));
+        registry.registerVault(address(strategy), address(vault));
+    }
+
+    function _depositAlice(uint256 amount) internal returns (uint256 shares) {
+        vm.startPrank(alice);
+        token0.approve(address(vault), amount);
+        token1.approve(address(vault), amount);
+        shares = vault.deposit(amount, amount, 1, block.timestamp + 1 hours);
+        vm.stopPrank();
     }
 
     function test_HookPermissions() public view {
@@ -135,25 +135,24 @@ contract CuratorVaultTest is Test {
         assertEq(address(vault.hook()), address(hook));
         assertEq(address(strategy.vault()), address(vault));
         assertEq(vault.curator(), curator);
-        assertEq(hook.verifier(), address(verifier));
+        assertEq(registry.reporter(), address(hook));
+        assertFalse(registry.isApproved(address(strategy)));
     }
 
-    function test_VerificationGate() public {
-        assertEq(hook.verifiedScore(address(strategy)), 0);
+    function test_RegistryApprovalAndStartingReputation() public {
+        assertFalse(registry.isApproved(address(strategy)));
         _verifyCurator();
-        assertEq(hook.verifiedScore(address(strategy)), 90);
-        assertEq(hook.verifiedScore(curator), 90);
+        assertTrue(registry.isApproved(address(strategy)));
+        assertEq(registry.reputation(address(strategy)), 50);
+        assertEq(registry.aumCap(address(strategy)), 2_500_000e18);
     }
 
     function test_DepositMintsShares() public {
-        vm.startPrank(alice);
-        token0.approve(address(vault), 10_000e18);
-        token1.approve(address(vault), 10_000e18);
-        uint256 shares = vault.deposit(10_000e18, 10_000e18, 1, block.timestamp + 1 hours);
+        _verifyCurator();
+        uint256 shares = _depositAlice(10_000e18);
         assertGt(shares, 0);
         assertEq(vault.balanceOf(alice), shares);
         assertGt(vault.navPerShare(), 0);
-        vm.stopPrank();
     }
 
     function test_DynamicFeeIncreasesWithDeviation() public view {
@@ -163,11 +162,9 @@ contract CuratorVaultTest is Test {
     }
 
     function test_Gating_UnverifiedStrategyCannotAddLiquidity() public {
-        vm.startPrank(alice);
-        token0.approve(address(vault), 20_000e18);
-        token1.approve(address(vault), 20_000e18);
-        vault.deposit(10_000e18, 10_000e18, 1, block.timestamp + 1 hours);
-        vm.stopPrank();
+        _verifyCurator();
+        _depositAlice(10_000e18);
+        registry.revoke(address(strategy));
 
         vm.startPrank(curator);
         vm.expectRevert();
@@ -193,19 +190,12 @@ contract CuratorVaultTest is Test {
 
     function test_InitializePositionAndWithdraw() public {
         _verifyCurator();
-        vm.startPrank(alice);
-        token0.approve(address(vault), 20_000e18);
-        token1.approve(address(vault), 20_000e18);
-        uint256 shares = vault.deposit(10_000e18, 10_000e18, 1, block.timestamp + 1 hours);
-        vm.stopPrank();
-
+        uint256 shares = _depositAlice(10_000e18);
         vm.prank(curator);
         strategy.initialize(-60, 60, 3e24);
         assertTrue(vault.hasPosition());
         assertGt(vault.liquidity(), 0);
-
-        uint256 nav = vault.navPerShare();
-        assertGt(nav, 0);
+        assertGt(vault.navPerShare(), 0);
 
         vm.prank(alice);
         (uint256 a0, uint256 a1, uint256 perfFee) = vault.withdraw(shares, 0, 0, block.timestamp + 1 hours);
@@ -217,18 +207,12 @@ contract CuratorVaultTest is Test {
 
     function test_DynamicFeeAppliedOnSwap() public {
         _verifyCurator();
-        vm.startPrank(alice);
-        token0.approve(address(vault), 20_000e18);
-        token1.approve(address(vault), 20_000e18);
-        vault.deposit(10_000e18, 10_000e18, 1, block.timestamp + 1 hours);
-        vm.stopPrank();
+        _depositAlice(10_000e18);
 
         SwapHelper swapper = new SwapHelper(manager);
         token0.transfer(address(swapper), 1_000e18);
-
         vm.prank(curator);
         strategy.initialize(-60, 60, 3e24);
-
         uint24 feeBefore = hook.computeFee(TickMath.getSqrtPriceAtTick(0), TickMath.getSqrtPriceAtTick(0));
 
         vm.expectEmit(true, false, false, false);
@@ -239,21 +223,14 @@ contract CuratorVaultTest is Test {
                 zeroForOne: true, amountSpecified: 100e18, sqrtPriceLimitX96: TickMath.getSqrtPriceAtTick(-120)
             })
         );
-
         assertGe(hook.poolEmaPrice(PoolIdLibrary.toId(key)), 0);
     }
 
     function test_RebalanceCooldown() public {
         _verifyCurator();
-        vm.startPrank(alice);
-        token0.approve(address(vault), 20_000e18);
-        token1.approve(address(vault), 20_000e18);
-        vault.deposit(10_000e18, 10_000e18, 1, block.timestamp + 1 hours);
-        vm.stopPrank();
-
+        _depositAlice(10_000e18);
         vm.prank(curator);
         strategy.initialize(-60, 60, 3e24);
-
         vm.warp(block.timestamp + 60);
         vm.prank(curator);
         vm.expectRevert(SimpleRangeStrategy.CooldownActive.selector);
@@ -262,14 +239,8 @@ contract CuratorVaultTest is Test {
 
     function test_PerformanceFee_NoFeeBelowHWM() public {
         _verifyCurator();
-        vm.startPrank(alice);
-        token0.approve(address(vault), 20_000e18);
-        token1.approve(address(vault), 20_000e18);
-        uint256 shares = vault.deposit(10_000e18, 10_000e18, 1, block.timestamp + 1 hours);
-        vm.stopPrank();
-
-        uint256 hwm = vault.highWaterMark();
-        assertEq(hwm, 1e18);
+        uint256 shares = _depositAlice(10_000e18);
+        assertEq(vault.highWaterMark(), 1e18);
 
         vm.prank(alice);
         (,, uint256 perfFee) = vault.withdraw(shares / 2, 0, 0, block.timestamp + 1 hours);
@@ -278,14 +249,14 @@ contract CuratorVaultTest is Test {
 
     function test_Registry_StakeRequired() public {
         vm.expectRevert(CuratorRegistry.StakeTooLow.selector);
-        verifier.submitScore(address(strategy), 90);
+        registry.approve(address(strategy));
         assertFalse(registry.isApproved(address(strategy)));
     }
 
-    function test_Registry_ValidProofApproves() public {
+    function test_Registry_ApproveAfterStake() public {
         _stake(address(strategy), 200e18);
         assertFalse(registry.isApproved(address(strategy)));
-        verifier.submitScore(address(strategy), 90);
+        registry.approve(address(strategy));
         assertTrue(registry.isApproved(address(strategy)));
         assertEq(registry.stakeOf(address(strategy)), 200e18);
     }
@@ -293,65 +264,115 @@ contract CuratorVaultTest is Test {
     function test_Registry_StakeForCurator() public {
         token0.approve(address(registry), 200e18);
         registry.stakeFor(address(strategy), 200e18);
-        assertEq(registry.stakeOf(address(strategy)), 200e18);
-        verifier.submitScore(address(strategy), 90);
+        registry.approve(address(strategy));
         assertTrue(registry.isApproved(address(strategy)));
     }
 
     function test_Registry_RevokedCuratorBlocked() public {
         _verifyCurator();
-        vm.prank(address(verifier));
+        _depositAlice(10_000e18);
         registry.revoke(address(strategy));
         assertFalse(registry.isApproved(address(strategy)));
-
-        vm.startPrank(alice);
-        token0.approve(address(vault), 20_000e18);
-        token1.approve(address(vault), 20_000e18);
-        vault.deposit(10_000e18, 10_000e18, 1, block.timestamp + 1 hours);
-        vm.stopPrank();
 
         vm.prank(curator);
         vm.expectRevert();
         strategy.initialize(-60, 60, 3e24);
     }
 
+    function test_Registry_OnlyReporterCanRecordPerformance() public {
+        _verifyCurator();
+        vm.prank(outsider);
+        vm.expectRevert(CuratorRegistry.Unauthorized.selector);
+        registry.recordPerformance(address(strategy), address(vault), 400);
+    }
+
+    function test_Registry_OnlyRegisteredVaultCanReport() public {
+        _verifyCurator();
+        vm.prank(address(hook));
+        vm.expectRevert(CuratorRegistry.VaultNotRegistered.selector);
+        registry.recordPerformance(address(strategy), outsider, 400);
+    }
+
+    function test_Registry_PositivePerformanceRaisesCap() public {
+        _verifyCurator();
+        uint256 capBefore = registry.aumCap(address(strategy));
+        vm.prank(address(hook));
+        registry.recordPerformance(address(strategy), address(vault), 400);
+        assertGt(registry.reputation(address(strategy)), 50);
+        assertGt(registry.aumCap(address(strategy)), capBefore);
+    }
+
+    function test_Registry_NegativePerformanceRevokes() public {
+        _verifyCurator();
+        vm.prank(address(hook));
+        registry.recordPerformance(address(strategy), address(vault), -1000);
+        assertFalse(registry.isApproved(address(strategy)));
+        assertEq(registry.aumCap(address(strategy)), 0);
+    }
+
+    function test_DepositRespectsAumCap() public {
+        _stake(address(strategy), 100e18);
+        registry.approve(address(strategy));
+        registry.registerVault(address(strategy), address(vault));
+
+        vm.startPrank(alice);
+        token0.approve(address(vault), 300e18);
+        token1.approve(address(vault), 300e18);
+        vm.expectRevert(CuratorVault.AumCapExceeded.selector);
+        vault.deposit(300e18, 300e18, 1, block.timestamp + 1 hours);
+        vm.stopPrank();
+    }
+
+    function test_FeeClaimAndReputationAfterOutperformance() public {
+        _verifyCurator();
+        uint256 shares = _depositAlice(10_000e18);
+        token0.transfer(address(vault), 1000e18);
+        assertGt(vault.navPerShare(), vault.hodlPerShare());
+
+        vm.prank(alice);
+        (,, uint256 perfFee) = vault.withdraw(shares, 0, 0, block.timestamp + 1 hours);
+        assertGt(perfFee, 0);
+        assertGt(vault.claimableFees(curator), 0);
+        assertGt(registry.reputation(address(strategy)), 50);
+
+        uint256 before = token0.balanceOf(curator);
+        vm.prank(curator);
+        vault.claimPerformanceFees();
+        assertEq(token0.balanceOf(curator), before + perfFee);
+        assertEq(vault.claimableFees(curator), 0);
+    }
+
+    function test_ClaimFeesRequiresFees() public {
+        vm.prank(curator);
+        vm.expectRevert(CuratorVault.NoFees.selector);
+        vault.claimPerformanceFees();
+    }
+
     function testFuzz_ComputeFeeWithinBounds(uint160 ref, uint160 delta) public view {
         vm.assume(ref > 0);
         uint160 current = ref > type(uint160).max - delta ? type(uint160).max : ref + delta;
-        uint24 fee = hook.computeFee(current, ref);
-        assertGe(fee, hook.baseFee());
-        assertLe(fee, hook.maxFee());
+        assertGe(hook.computeFee(current, ref), hook.baseFee());
+        assertLe(hook.computeFee(current, ref), hook.maxFee());
     }
 
     function testFuzz_DepositShareAccounting(uint256 amount) public {
         vm.assume(amount >= 1e18 && amount <= 1000e18);
-        vm.startPrank(alice);
-        token0.approve(address(vault), amount);
-        token1.approve(address(vault), amount);
-        uint256 shares = vault.deposit(amount, amount, 1, block.timestamp + 1 hours);
+        _verifyCurator();
+        uint256 shares = _depositAlice(amount);
         assertEq(vault.balanceOf(alice), shares);
         assertGt(vault.navPerShare(), 0);
-        vm.stopPrank();
     }
 
     function test_Invariant_NavMatchesDeposits() public {
-        vm.startPrank(alice);
-        token0.approve(address(vault), 20_000e18);
-        token1.approve(address(vault), 20_000e18);
-        vault.deposit(10_000e18, 10_000e18, 1, block.timestamp + 1 hours);
-        vm.stopPrank();
+        _verifyCurator();
+        _depositAlice(10_000e18);
         assertEq(vault.totalNav(), 20_000e18);
         assertEq(vault.hodlPerShare(), 1e18);
     }
 
     function test_OutOfRangeWithdrawal() public {
         _verifyCurator();
-        vm.startPrank(alice);
-        token0.approve(address(vault), 20_000e18);
-        token1.approve(address(vault), 20_000e18);
-        uint256 shares = vault.deposit(10_000e18, 10_000e18, 1, block.timestamp + 1 hours);
-        vm.stopPrank();
-
+        uint256 shares = _depositAlice(10_000e18);
         vm.prank(curator);
         strategy.initialize(-60, 60, 3e24);
 
@@ -372,13 +393,10 @@ contract CuratorVaultTest is Test {
 
     function test_PerformanceFee_LossPaysZero() public {
         PoolId id = PoolIdLibrary.toId(key);
-
         vm.prank(address(vault));
         assertEq(hook.authorizeFee(id, 0.9e18, 1e18, 1000), 0);
-
         vm.prank(address(vault));
         assertEq(hook.authorizeFee(id, 1.1e18, 1e18, 1000), 1000);
-
         vm.prank(address(vault));
         assertEq(hook.authorizeFee(id, 1.1e18, 1e18, 1000), 0);
     }

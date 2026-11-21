@@ -12,7 +12,6 @@ import {CREATE2Deployer} from "../src/mocks/CREATE2Deployer.sol";
 import {CuratorVaultHook} from "../src/CuratorVaultHook.sol";
 import {CuratorVault} from "../src/CuratorVault.sol";
 import {SimpleRangeStrategy} from "../src/SimpleRangeStrategy.sol";
-import {MockBrevisVerifier} from "../src/mocks/MockBrevisVerifier.sol";
 import {CuratorRegistry} from "../src/CuratorRegistry.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
@@ -27,7 +26,6 @@ contract DeployCuratorVault is Script {
         CuratorVaultHook hook;
         CuratorVault vault;
         SimpleRangeStrategy strategy;
-        MockBrevisVerifier verifier;
         CuratorRegistry registry;
     }
 
@@ -57,8 +55,7 @@ contract DeployCuratorVault is Script {
 
         d.vault = new CuratorVault(d.manager, d.hook, key, deployerAddr, 1000);
         d.strategy = new SimpleRangeStrategy(d.vault, deployerAddr, 1000, strategyCooldown, 500);
-        d.verifier = new MockBrevisVerifier(d.hook);
-        d.registry = new CuratorRegistry(IERC20(address(t0)), deployerAddr, 100e18);
+        d.registry = new CuratorRegistry(IERC20(address(t0)), deployerAddr, 100e18, 40, 50);
 
         _wire(d);
         d.vault.setSupportedPool();
@@ -70,7 +67,6 @@ contract DeployCuratorVault is Script {
         console2.log("Hook:", address(d.hook));
         console2.log("Vault:", address(d.vault));
         console2.log("Strategy:", address(d.strategy));
-        console2.log("Verifier:", address(d.verifier));
         console2.log("Registry:", address(d.registry));
     }
 
@@ -116,11 +112,13 @@ contract DeployCuratorVault is Script {
     function _wire(Deployment memory d) internal {
         d.hook.setVault(address(d.vault));
         d.hook.setStrategy(address(d.strategy));
-        d.hook.setVerifier(address(d.verifier));
         d.hook.setRegistry(address(d.registry));
         d.hook.setMaxPerformanceFeeBps(1000);
-        d.verifier.setRegistry(d.registry);
-        d.registry.setVerifier(address(d.verifier));
+        d.registry.setReporter(address(d.hook));
+        IERC20(address(d.token0)).approve(address(d.registry), 200e18);
+        d.registry.stakeFor(address(d.strategy), 200e18);
+        d.registry.approve(address(d.strategy));
+        d.registry.registerVault(address(d.strategy), address(d.vault));
         d.vault.setStrategy(address(d.strategy));
     }
 }

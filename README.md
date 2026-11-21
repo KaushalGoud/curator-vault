@@ -1,28 +1,41 @@
 # CuratorVault
 
-Mutual funds for Uniswap v4 liquidity — an active-management hook built for UHI11.
+Mutual funds for Uniswap v4 liquidity — reputation-weighted curation for UHI11.
 
 ## What it does
 
-Depositors put token0/token1 into an ERC20 vault and receive shares. A verified curator manages a single concentrated liquidity position through a strategy module. The hook enforces the mandate at the pool level:
+Depositors put token0/token1 into an ERC20 vault and receive shares. A curator manages one concentrated liquidity position through a strategy module. The hook enforces the mandate at the pool level:
 
-- Only the vault may add/remove liquidity.
+- Only the vault may add or remove liquidity.
 - Range width and rebalance frequency are bounded on-chain.
-- Curator actions require a stake-backed, verifier-approved registry entry.
+- Curator actions require a staked, approved registry entry.
+- Deposits are capped by the curator's AUM cap.
 - Dynamic LP fees rise when pool price deviates from an EMA reference.
-- NAV uses the hook EMA price; performance fees require both a new high-water mark and an outperformance of the HODL benchmark.
+- NAV uses the hook EMA price.
+- Performance fees are charged only when share price beats both its high-water mark and a HODL benchmark.
+- Curators claim their performance fees on-chain.
+
+## Reputation-weighted curation
+
+Curators do not buy a badge. They stake a locked bond, receive a starting AUM cap, and then earn more capital by beating HODL.
+
+- `CuratorRegistry` stores stake, approval, reputation score, report count, and registered vault.
+- The hook is the only reporter. The vault calls `hook.reportPerformance(strategy, alphaBps)` on every withdrawal.
+- Alpha is measured from the vault's own accounting: `alphaBps = (sharePrice - hodlPerShare) / hodlPerShare`.
+- Reports are clamped to +/-1000 bps and folded into an EMA: `score = (score * 9 + alphaBps) / 10`.
+- Initial score is `50`; minimum score is `40`.
+- AUM cap is `stake * (200 + score) / 100`, so a new curator with score `50` can manage up to `2.5x` their stake.
+- Underperformance lowers score and cap. Falling below the minimum revokes the curator.
+- Positive alpha creates claimable performance fees for the vault's curator address.
+
+This is protocol-measured performance, not a ZK proof and not a cross-protocol track record. The seed cohort is owner-approved and disclosed; after onboarding, reputation updates automatically from real vault withdrawals.
 
 ## Architecture
 
-- `src/CuratorVaultHook.sol` — Uniswap v4 hook: permissions, gating, guardrails, dynamic fees, EMA.
-- `src/CuratorVault.sol` — ERC20 share vault; deposit/withdraw; HODL benchmark; unlock callback for liquidity management.
-- `src/CuratorRegistry.sol` — locked stake plus verifier approval; hook reads `isApproved` before liquidity changes.
+- `src/CuratorVaultHook.sol` — Uniswap v4 hook: permissions, gating, guardrails, dynamic fees, EMA, reputation reporting.
+- `src/CuratorVault.sol` — ERC20 share vault; deposit/withdraw; HODL benchmark; AUM cap check; performance fees and fee claims.
+- `src/CuratorRegistry.sol` — locked stake, reputation score, AUM cap, revocation, vault registration.
 - `src/SimpleRangeStrategy.sol` — curator-controlled rebalancing with drift/cooldown checks.
-- `src/BrevisCuratorVerifier.sol` — ZK callback that approves a staked curator after a Brevis proof.
-- `src/brevis/BrevisAppZkOnly.sol` — MIT-licensed Brevis callback base copied from the official SDK.
-- `brevis/prover/circuits/circuit.go` — Brevis circuit proving that the strategy emitted rebalance events from the hook in a block range.
-- `brevis/app/src/index.ts` — proof request submitter and on-chain `BrevisRequest.sendRequest` helper.
-- `src/mocks/MockBrevisVerifier.sol` — disclosed local-demo stand-in for the Brevis callback.
 - `src/mocks/CREATE2Deployer.sol` — CREATE2 factory for mining hook permission bits.
 - `src/mocks/SwapHelper.sol` — test-only swap helper.
 
@@ -35,7 +48,7 @@ forge build
 forge test -vv
 ```
 
-30 tests total cover: permission mining, wiring, registry staking/revocation, verification gating, Brevis callback authorization/vk/range/replay checks, deposit/withdraw, position init, out-of-range withdrawal, dynamic fee event, rebalance cooldown, HODL benchmark, fee authorization, fuzz cases, and high-water mark behavior.
+30 tests cover permission mining, wiring, registry staking/approval/revocation, reputation reporting, AUM caps, hook gating, fee claims, deposit/withdraw, position init, out-of-range withdrawal, dynamic fees, rebalance cooldown, HODL benchmark, high-water mark, and fuzz cases.
 
 ## Deploy
 
@@ -44,7 +57,7 @@ export PRIVATE_KEY=0x...
 forge script script/DeployCuratorVault.s.sol --rpc-url <RPC> --broadcast
 ```
 
-The script mines a CREATE2 salt so the hook address ends in the required permission bits, deploys PoolManager + test tokens + hook + vault + strategy + verifier + registry, initializes the pool with `LPFeeLibrary.DYNAMIC_FEE_FLAG`, registers the supported pool, and wires all contracts. `MIN_REBALANCE_INTERVAL` and `STRATEGY_COOLDOWN` default to `1 hours` and can be shortened for testnet demos.
+The script mines a CREATE2 salt so the hook address ends in the required permission bits, deploys PoolManager + test tokens + hook + vault + strategy + registry, initializes the pool with `LPFeeLibrary.DYNAMIC_FEE_FLAG`, registers the supported pool, stakes for the strategy, bootstraps approval, registers the vault, and wires all contracts. `MIN_REBALANCE_INTERVAL` and `STRATEGY_COOLDOWN` default to `1 hours` and can be shortened for testnet demos.
 
 For local simulation (no broadcast):
 
@@ -53,45 +66,21 @@ PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
   forge script script/DeployCuratorVault.s.sol -vvv
 ```
 
-## Brevis proof path
+## Sepolia deployment
 
-The honest Brevis claim is intentionally smaller than “proved outperformance”: the circuit proves that a named strategy address appeared as topic 2 in at least `MIN_REBALANCES` `RebalanceExecuted(bytes32,address,int24,int24)` events from the pinned hook within a bounded block range. The vault separately measures outperformance against HODL through its benchmark and high-water mark.
+Current testnet deployment uses these addresses:
 
-The default `DeployCuratorVault.s.sol` path keeps the disclosed mock verifier for local demos. To use the real callback, deploy and point the registry at it:
+| Contract | Address |
+| --- | --- |
+| PoolManager | `0x39E0f2c3ea784A1bA9C026cceAEC1b39400BA91c` |
+| Token0 | `0x0BfDc19147ae322E9f94711f903a07869E1cCefa` |
+| Token1 | `0xF5f9989Ad5eCeA50c7706e1C3fce0e74051870eF` |
+| Hook | `0x9ea63C10324F2E448175f7102Dc59cF2F69Ecfc0` |
+| Vault | `0x1b45334925913bA2f48DFf2dDCe5E6a05f47d138` |
+| Strategy | `0xA765D2F5Bb53daf46bD215b412623057BaEA9DC5` |
+| Registry | `0x77278f63c0F253F7255eEeB2305D5ea85f5EaF94` |
 
-```sh
-export PRIVATE_KEY=0x...
-export REGISTRY=<registry address>
-export HOOK=<hook address>
-export BREVIS_VK_HASH=<vk hash from prover setup>
-forge script script/DeployBrevisVerifier.s.sol --rpc-url <RPC> --broadcast
-```
-
-The script defaults to the legacy Sepolia `BrevisRequest` at `0x841ce48F9446C8E281D3F1444cB859b4A6D0738C`; override with `BREVIS_REQUEST` for another supported network. The legacy path uses `brevis-sdk-typescript` 1.2.5 with `GATEWAY=appsdkv2.brevis.network:9094`; the current production-style Brevis deployment uses Go SDK 0.3.17+, `appsdkv3.brevis.network:443`, and `BrevisRequest` at `0x91540fe35a245ba83459f6410c86f1aec309b290` on Arbitrum with Ethereum-mainnet source data. During final testing the legacy gateway returned HTTP 502 at `PrepareQuery`, so the app proof was generated locally but the final Brevis proof/approval remained pending.
-
-Run the prover service:
-
-```sh
-cd brevis/prover
-go mod tidy
-go build ./...
-RPC_URL=<chain RPC> CHAIN_ID=11155111 go run ./cmd --port 33247
-```
-
-Then submit a proof request with the transaction hashes containing rebalance logs:
-
-```sh
-cd brevis/app
-npm install
-RPC_URL=<chain RPC> PRIVATE_KEY=0x... \
-  VERIFIER=<BrevisCuratorVerifier address> \
-  HOOK=<hook address> \
-  STRATEGY=<strategy address> \
-  TX_HASHES=0x...,0x... \
-  npm run prove
-```
-
-Copy the prover `vkHash` into `BrevisCuratorVerifier.setVkHash` before requesting a proof. `brevis/prover/cmd/vkhash` prints it after circuit setup; setup downloads the ~3.2 GB KZG SRS on first run, so use the prover service output or a pre-populated `SRS_DIR` if available. `brevisCallback` accepts only the configured BrevisRequest, checks the vk hash, checks the pinned hook, enforces the rebalance-count and block-range thresholds, rejects replayed claims, and calls `CuratorRegistry.approve(strategy, claim)`.
+The dashboard ships with these addresses as defaults and has a **Use Sepolia Defaults** button to override stale browser state.
 
 ## Dashboard
 
@@ -102,26 +91,9 @@ cd dashboard
 python3 -m http.server 8080
 ```
 
-Open `http://localhost:8080`, connect MetaMask, paste contract addresses from the deploy output, and use the UI to stake for the strategy, verify scores, deposit, withdraw, and manage positions.
+Open `http://localhost:8080`, connect MetaMask, and paste the contract addresses from the deploy output. The dashboard shows vault NAV, HODL, alpha, high-water mark, fees, claimable fees, curator score, stake, AUM cap, utilization, and approval status. It also exposes staking, bootstrap approval, vault registration, deposits, withdrawals, rebalancing, and fee claims.
 
-## Limitations
-
-- Local Anvil demos use `MockBrevisVerifier`; the Brevis circuit/verifier/submitter are provided for testnet/production and must be funded and configured with a real vk hash before use.
-- The Brevis circuit proves rebalance activity from the hook, not that the curator beat the HODL benchmark; outperformance is measured by the vault benchmark and fee authorization path.
-- Registry stake is locked and is a demo bonding primitive, not a full slashing design.
-- Holdings are assumed to be 18-decimal tokens in NAV math.
-- The vault manages one position with a fixed salt.
-
-## Threat Model
-
-- Hook wiring is owner-set once; after setup, only the pool manager can call liquidity hooks and only the vault can pass the sender gate.
-- The registry verifier can approve or revoke curators but cannot withdraw locked stake; there is no slashing in the demo.
-- The mock verifier is intentionally trusted and is only for the local demo; testnet/production must use `BrevisCuratorVerifier` and a real Brevis proof.
-- NAV and dynamic fees use the hook EMA price rather than spot, reducing single-block price manipulation, but a slow EMA can lag during volatile moves.
-- Performance fees are capped by the hook at 1000 bps (10%) in the demo wiring and are authorized only when both the high-water mark and HODL benchmark are beaten.
-- NAV math assumes both tokens have 18 decimals.
-
-## Demo Script
+## Demo script
 
 ```sh
 export PATH="$HOME/.foundry/bin:$PATH"
@@ -138,8 +110,27 @@ forge test -vv
 cd dashboard && python3 -m http.server 8080
 ```
 
-Paste the printed addresses into the dashboard, connect MetaMask to Anvil, stake for the strategy, submit a verification score through the disclosed mock verifier, deposit, initialize the position, swap externally to move the EMA, and withdraw to see benchmarked fees. For a testnet Brevis proof, use `DeployBrevisVerifier.s.sol` and the `brevis/` tooling instead.
+Paste the printed addresses into the dashboard, connect MetaMask, stake for the strategy, bootstrap approve, confirm the vault is registered, deposit, initialize the position, swap externally to move price and EMA, withdraw to trigger a reputation report, then show the score/AUM cap change and claim any performance fees.
+
+## Limitations
+
+- The seed curator cohort is owner-approved; ongoing reputation is automatic from vault withdrawals.
+- Reputation measures performance inside this vault only, not across other protocols.
+- AUM caps are denominated in token0 value using the hook EMA price.
+- Registry stake is locked and is a demo bonding primitive, not a full slashing design.
+- Holdings are assumed to be 18-decimal tokens in NAV math.
+- The vault manages one position with a fixed salt.
+
+## Threat model
+
+- Hook wiring is owner-set once; after setup, only the pool manager can call liquidity hooks and only the vault can pass the sender gate.
+- Only the hook can report performance, and the hook only accepts reports from the vault.
+- Deposits are blocked when proposed AUM exceeds the curator's cap.
+- The registry owner can revoke a curator but cannot withdraw locked stake.
+- NAV and dynamic fees use the hook EMA price rather than spot, reducing single-block price manipulation, but a slow EMA can lag during volatile moves.
+- Performance fees are capped by the hook and authorized only when both the high-water mark and HODL benchmark are beaten.
+- NAV math assumes both tokens have 18 decimals.
 
 ## Credits
 
-Built with Uniswap v4, Foundry, OpenZeppelin, and Brevis zkCoprocessor. `BrevisAppZkOnly.sol` is copied from brevis-contracts 1.0.5 under the MIT license. The local Anvil path uses a disclosed mock verifier; the real circuit, callback, and submitter are included.
+Built with Uniswap v4, Foundry, and OpenZeppelin.
