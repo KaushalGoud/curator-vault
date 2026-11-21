@@ -79,6 +79,7 @@ Current testnet deployment uses these addresses:
 | Vault | `0x1b45334925913bA2f48DFf2dDCe5E6a05f47d138` |
 | Strategy | `0xA765D2F5Bb53daf46bD215b412623057BaEA9DC5` |
 | Registry | `0x77278f63c0F253F7255eEeB2305D5ea85f5EaF94` |
+| SwapHelper | `0x129aa3EF64AE6f881fDA1708e7A5BDE133df16C2` |
 
 The dashboard ships with these addresses as defaults and has a **Use Sepolia Defaults** button to override stale browser state.
 
@@ -91,7 +92,18 @@ cd dashboard
 python3 -m http.server 8080
 ```
 
-Open `http://localhost:8080`, connect MetaMask, and paste the contract addresses from the deploy output. The dashboard shows vault NAV, HODL, alpha, high-water mark, fees, claimable fees, curator score, stake, AUM cap, utilization, and approval status. It also exposes staking, bootstrap approval, vault registration, deposits, withdrawals, rebalancing, and fee claims.
+Open `http://localhost:8080`. The app starts on a landing page; connect MetaMask on Sepolia, then choose a workspace:
+
+- **Depositor** — Explore curators, Curator detail, and My position. NAV, alpha, tier, record, fee rate, vesting, deposit cap left, shares, and withdrawal.
+- **Curator** — Curator console. Tier progress, registration state, stake/reputation, mandate limits, fee escrow, market simulator, and collapsed onboarding controls.
+- **Activity** — shared by both roles; recent indexed on-chain events plus Deployment settings. Use **Use Sepolia Defaults** here if browser state is stale.
+
+Role selects the workspace only; on-chain permissions still decide who can manage or claim. **Switch role** changes the workspace without reconnecting, and **Disconnect** returns to the landing page. Reputation, stake, and AUM cap belong to the registered strategy address; performance-fee claims belong to the curator operator wallet. A non-operator curator view is read-only.
+
+Tier, record, and vesting are UI interpretations of on-chain state, not additional contract fields.
+ Tier is derived from reputation (`Seed` 40-49, `Active` 50-69, `Elite` 70+), record is score plus report count, and vesting is shown as `Locked · no unlock` because the demo stake has no withdrawal path. The activity feed only shows events the contracts actually emit; it does not invent reverted actions, epoch rollovers, or clawbacks.
+
+The market simulator uses the deployed `SwapHelper` to move the pool price with test tokens. After a simulated swap, withdraw shares to trigger a performance report and watch the reputation score and AUM cap update.
 
 ## Demo script
 
@@ -110,7 +122,7 @@ forge test -vv
 cd dashboard && python3 -m http.server 8080
 ```
 
-Paste the printed addresses into the dashboard, connect MetaMask, stake for the strategy, bootstrap approve, confirm the vault is registered, deposit, initialize the position, swap externally to move price and EMA, withdraw to trigger a reputation report, then show the score/AUM cap change and claim any performance fees.
+Paste the printed addresses into **Activity → Deployment settings**, connect MetaMask, choose **Depositor**, deposit from **Curator detail**, then use **My position**. Switch to **Curator** to open/rebalance the position and use **Market simulator** to move price. Switch back to **Depositor** and withdraw to trigger a reputation report, then show the score/AUM cap change on **Explore curators** and claim any performance fees from **Curator console**. On local Anvil, also deploy `src/mocks/SwapHelper.sol` with the PoolManager address and paste it into Deployment settings.
 
 ## Limitations
 

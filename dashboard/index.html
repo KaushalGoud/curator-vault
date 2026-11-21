@@ -3,109 +3,487 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CuratorVault Dashboard</title>
-  <link rel="stylesheet" href="./style.css" />
+  <title>CuratorVault — Curated Liquidity</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css?v=11" />
 </head>
-<body>
-  <header>
-    <div class="brand">
-      <div class="logo">CV</div>
-      <div>
-        <h1>CuratorVault</h1>
-        <p>Mutual funds for Uniswap v4 liquidity</p>
+<body class="pre-app">
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">CV</div>
+        <div>
+          <h1>CuratorVault</h1>
+          <p>Curated liquidity, measured on-chain</p>
+        </div>
       </div>
+      <div class="top-actions">
+        <span id="network" class="network-pill">Not connected</span>
+        <button id="logoutBtn" class="btn small" hidden>Disconnect</button>
+        <button id="connectBtn" class="btn btn-primary">Connect Wallet</button>
+      </div>
+    </header>
+
+    <section id="page-landing" class="landing">
+      <div class="landing-grid">
+        <div class="landing-copy">
+          <div class="eyebrow">UHI11 · curated liquidity</div>
+          <h2>Capital follows measured performance.</h2>
+          <p>CuratorVault turns alpha versus HODL into an on-chain reputation score. Depositors allocate with readable limits; curators earn more capital by managing well.</p>
+          <div class="landing-actions">
+            <button id="landingConnectBtn" class="btn btn-primary">Connect wallet to continue</button>
+            <span id="landingWallet" class="landing-wallet">No wallet connected</span>
+          </div>
+          <div class="landing-points">
+            <div><span>01</span><strong>Measure</strong><small>Alpha is calculated from real vault accounting.</small></div>
+            <div><span>02</span><strong>Cap</strong><small>Reputation controls how much capital a curator can manage.</small></div>
+            <div><span>03</span><strong>Align</strong><small>Fees accrue only above HODL and the high-water mark.</small></div>
+          </div>
+        </div>
+        <aside class="landing-card">
+          <div class="landing-card-head">Two ways in</div>
+          <div class="landing-role-row">
+            <span class="role-mark">D</span>
+            <div><strong>Depositor</strong><p>Compare curators, allocate, and follow your position.</p></div>
+          </div>
+          <div class="landing-role-row">
+            <span class="role-mark">C</span>
+            <div><strong>Curator</strong><p>Manage the mandate, build reputation, and claim fees.</p></div>
+          </div>
+          <p class="landing-note">Role selects your workspace. On-chain permissions still decide who can manage or claim.</p>
+        </aside>
+      </div>
+    </section>
+
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="side-label">Product</div>
+        <nav class="nav">
+          <button class="nav-item active" data-page="explore" data-role="depositor">Explore curators</button>
+          <button class="nav-item" data-page="detail" data-role="depositor">Curator detail</button>
+          <button class="nav-item" data-page="position" data-role="depositor">My position</button>
+          <button class="nav-item" data-page="console" data-role="curator">Curator console</button>
+          <button class="nav-item" data-page="activity" data-role="shared">Activity</button>
+        </nav>
+        <button id="switchRoleBtn" class="btn ghost side-switch">Switch role</button>
+
+        <div class="side-card">
+          <div class="side-label">Demo guide</div>
+          <div id="stepDeposit" class="step"><span>1</span><div><strong>Deposit</strong><small>Fund the vault</small></div></div>
+          <div id="stepPosition" class="step"><span>2</span><div><strong>Open position</strong><small>Deploy liquidity</small></div></div>
+          <div id="stepMove" class="step"><span>3</span><div><strong>Move price</strong><small>Create alpha</small></div></div>
+          <div id="stepWithdraw" class="step"><span>4</span><div><strong>Withdraw</strong><small>Report performance</small></div></div>
+          <div id="stepClaim" class="step"><span>5</span><div><strong>Claim fees</strong><small>Realize earnings</small></div></div>
+        </div>
+
+        <div class="side-note">
+          <strong>UHI11</strong>
+          <span>Active management · Curated liquidity</span>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div id="networkBanner" class="banner banner-warn" hidden>
+          <span id="networkBannerText">Wrong network.</span>
+          <button id="switchNetworkBtn" class="btn small">Switch to Sepolia</button>
+        </div>
+        <div id="tokenBanner" class="banner" hidden>
+          <span id="tokenBannerText">No test tokens detected.</span>
+        </div>
+
+        <section id="page-explore" class="page active">
+          <div class="hero">
+            <div>
+              <div class="eyebrow">Curator marketplace</div>
+              <h2>Find a curator. Allocate with confidence.</h2>
+              <p>Curators are ranked by an on-chain reputation score. Capital caps, performance fees, and locked stake are readable directly from the contracts.</p>
+            </div>
+            <div id="healthPill" class="health-pill">Checking status</div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi">
+              <span>Net asset value</span>
+              <strong id="kpiNav">—</strong>
+              <small id="kpiSupply">Supply —</small>
+            </div>
+            <div class="kpi">
+              <span>Alpha vs HODL</span>
+              <strong id="kpiAlpha">—</strong>
+              <small id="kpiHodl">HODL —</small>
+            </div>
+            <div class="kpi">
+              <span>Curator score</span>
+              <strong id="kpiScore">—</strong>
+              <small id="kpiStake">Stake —</small>
+            </div>
+            <div class="kpi">
+              <span>AUM capacity</span>
+              <strong id="kpiCap">—</strong>
+              <small id="kpiUtil">Utilization —</small>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3>Live curators</h3>
+                <p class="muted">Read from the registry · no invented profiles</p>
+              </div>
+              <span id="curatorCount" class="tag">0 tracked</span>
+            </div>
+            <div class="directory-tools">
+              <input id="curatorSearch" type="search" placeholder="Search name or address" aria-label="Search curators" />
+              <select id="curatorSort" aria-label="Sort curators">
+                <option value="score">Highest score</option>
+                <option value="cap">Most cap left</option>
+                <option value="fee">Lowest fee</option>
+                <option value="reports">Most reports</option>
+              </select>
+              <input id="trackCuratorInput" placeholder="0x… strategy address" aria-label="Curator strategy address" />
+              <button id="trackCuratorBtn" class="btn">Track</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Curator</th>
+                    <th>Tier</th>
+                    <th>Record</th>
+                    <th>Fee rate</th>
+                    <th>Vesting</th>
+                    <th>Cap left</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="curatorTableBody"></tbody>
+              </table>
+            </div>
+            <p class="hint">Tier is derived from the score attached to the registered strategy. Fee claims belong to the curator operator wallet. “Record” means score and report count, not invented win/loss stats.</p>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3>Reputation history</h3>
+                <p class="muted">Derived from real ReputationUpdated events</p>
+              </div>
+              <span id="historyLabel" class="tag">—</span>
+            </div>
+            <div id="curatorHistory" class="sparkline"><div class="activity-empty">No reports yet.</div></div>
+          </div>
+
+          <div class="callout-grid">
+            <div class="callout"><strong>Reputation-weighted</strong><span>Withdrawals report alpha versus HODL. The score rises or falls and the AUM cap follows.</span></div>
+            <div class="callout"><strong>Bounded mandates</strong><span>The hook constrains range width, rebalance timing, and which address may manage liquidity.</span></div>
+            <div class="callout"><strong>Fee alignment</strong><span>Performance fees accrue only above the high-water mark and the HODL benchmark.</span></div>
+          </div>
+        </section>
+
+        <section id="page-detail" class="page">
+          <div class="page-head">
+            <div>
+              <button id="backExploreBtn" class="btn ghost">← All curators</button>
+              <h2>Curator detail</h2>
+              <p>Full on-chain record, limits, escrow, and deposit form.</p>
+            </div>
+            <span id="detailTier" class="tier">—</span>
+          </div>
+
+          <div class="card detail-hero">
+            <div class="curator-cell">
+              <div class="avatar large">C1</div>
+              <div><h3 id="detailName">Curator 01</h3><small id="detailCuratorAddr">—</small></div>
+            </div>
+            <div class="detail-stats">
+              <div><span>Score</span><strong id="detailScore">—</strong></div>
+              <div><span>Reports</span><strong id="detailReports">—</strong></div>
+              <div><span>Approved</span><strong id="detailApproved">—</strong></div>
+            </div>
+          </div>
+
+          <div class="identity-grid">
+            <div class="identity-card">
+              <span>Operator wallet</span>
+              <code id="identityOperator">—</code>
+              <small>Claims fees and signs management calls.</small>
+            </div>
+            <div class="identity-card accent">
+              <span>Registered strategy</span>
+              <code id="identityStrategy">—</code>
+              <small>Owns the score, stake, and AUM cap.</small>
+            </div>
+          </div>
+
+          <div class="panel-grid two">
+            <div class="card">
+              <h3>On-chain record</h3>
+              <div class="stat-list">
+                <div class="stat"><span>Reputation</span><strong id="detailReputation">—</strong></div>
+                <div class="stat"><span>Alpha vs HODL</span><strong id="detailAlpha">—</strong></div>
+                <div class="stat"><span>Locked stake</span><strong id="detailStake">—</strong></div>
+                <div class="stat"><span>AUM cap</span><strong id="detailCap">—</strong></div>
+                <div class="stat"><span>Cap left</span><strong id="detailCapLeft">—</strong></div>
+                <div class="stat"><span>Utilization</span><strong id="detailUtilization">—</strong></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Mandate limits</h3>
+              <div class="stat-list">
+                <div class="stat"><span>Max range width</span><strong id="detailRange">—</strong></div>
+                <div class="stat"><span>Rebalance cooldown</span><strong id="detailCooldown">—</strong></div>
+                <div class="stat"><span>Center drift limit</span><strong id="detailDrift">—</strong></div>
+                <div class="stat"><span>Hook interval</span><strong id="detailHookInterval">—</strong></div>
+                <div class="stat"><span>Performance fee</span><strong id="detailPerfFee">—</strong></div>
+                <div class="stat"><span>LP fee range</span><strong id="detailLpFees">—</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-grid two">
+            <div class="card">
+              <h3>Profile &amp; escrow</h3>
+              <div class="address-list">
+                <div><span>Curator</span><code id="detailCuratorFull">—</code></div>
+                <div><span>Strategy</span><code id="detailStrategyFull">—</code></div>
+                <div><span>Vault</span><code id="detailVaultFull">—</code></div>
+                <div><span>Hook</span><code id="detailHookFull">—</code></div>
+              </div>
+              <div class="stat-list tight">
+                <div class="stat"><span>Total fees earned</span><strong id="detailTotalFees">—</strong></div>
+                <div class="stat"><span>Fee escrow</span><strong id="detailEscrow">—</strong></div>
+              </div>
+            </div>
+
+            <div class="card action-card">
+              <h3>Deposit with this curator</h3>
+              <div class="balance-row">
+                <span>Available</span>
+                <strong><span id="bal0">—</span> T0 · <span id="bal1">—</span> T1</strong>
+              </div>
+              <label>Token0 amount<input id="deposit0" type="number" value="100" /></label>
+              <label>Token1 amount<input id="deposit1" type="number" value="100" /></label>
+              <div class="field-row">
+                <label>Min shares out<input id="depositMinShares" type="number" value="0" /></label>
+                <label>Deadline (minutes)<input id="depositDeadline" type="number" value="60" /></label>
+              </div>
+              <div class="inline-actions">
+                <button id="approve0Btn" class="btn depositor-only">Approve T0</button>
+                <button id="approve1Btn" class="btn depositor-only">Approve T1</button>
+              </div>
+              <button id="depositBtn" class="btn btn-primary full depositor-only">Deposit into vault</button>
+              <p class="hint">Deposits are blocked when proposed AUM exceeds the curator’s cap.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="page-position" class="page">
+          <div class="page-head">
+            <div>
+              <h2>My position</h2>
+              <p>Your vault shares, performance versus holding, and withdrawal control.</p>
+            </div>
+            <span class="tag">Non-custodial</span>
+          </div>
+
+          <div class="position-hero">
+            <div class="position-stat"><span>Your shares</span><strong id="posShares">—</strong><small id="posSupply">Vault supply —</small></div>
+            <div class="position-stat"><span>Position value</span><strong id="posValue">—</strong><small>token0 equivalent</small></div>
+            <div class="position-stat"><span>Value vs HODL</span><strong id="posDelta">—</strong><small id="posAlpha">Alpha —</small></div>
+          </div>
+
+          <div class="panel-grid two">
+            <div class="card">
+              <h3>Performance detail</h3>
+              <div class="stat-list">
+                <div class="stat"><span>NAV per share</span><strong id="posNav">—</strong></div>
+                <div class="stat"><span>HODL per share</span><strong id="posHodl">—</strong></div>
+                <div class="stat"><span>High-water mark</span><strong id="posHwm">—</strong></div>
+                <div class="stat"><span>Current dynamic fee</span><strong id="posFee">—</strong></div>
+                <div class="stat"><span>Max LP fee</span><strong id="posMaxFee">—</strong></div>
+                <div class="stat"><span>Pool EMA</span><strong id="posEma">—</strong></div>
+              </div>
+            </div>
+
+            <div class="card action-card">
+              <h3>Withdraw</h3>
+              <div class="balance-row"><span>Your shares</span><strong id="balShares">—</strong></div>
+              <label>Shares to withdraw<input id="withdrawShares" type="number" value="50" /></label>
+              <div class="field-row">
+                <label>Min T0 out<input id="withdrawMin0" type="number" value="0" /></label>
+                <label>Min T1 out<input id="withdrawMin1" type="number" value="0" /></label>
+              </div>
+              <label>Deadline (minutes)<input id="withdrawDeadline" type="number" value="60" /></label>
+              <button id="withdrawBtn" class="btn btn-primary full depositor-only">Withdraw shares</button>
+              <p class="hint">Every withdrawal reports realized alpha to the registry and updates the curator score.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="page-console" class="page">
+          <div class="page-head">
+            <div>
+              <h2>Curator console</h2>
+              <p>Registration, mandate management, tier progress, and fee escrow.</p>
+            </div>
+            <span id="consoleTier" class="tier">—</span>
+          </div>
+          <div id="curatorAccessNote" class="access-note">Checking operator access…</div>
+
+          <div class="identity-grid compact">
+            <div class="identity-card"><span>Operator wallet</span><code id="consoleOperator">—</code><small>Fee claims and management.</small></div>
+            <div class="identity-card accent"><span>Registered strategy</span><code id="consoleStrategy">—</code><small>Score, stake, and AUM cap.</small></div>
+          </div>
+
+          <div class="panel-grid two">
+            <div class="card">
+              <h3>Tier progress</h3>
+              <div class="tier-progress-head">
+                <span id="tierCurrent">—</span>
+                <span id="tierNext">—</span>
+              </div>
+              <div class="meter tall"><div id="tierProgressFill" class="meter-fill"></div></div>
+              <p class="hint" id="tierHint">—</p>
+              <div class="stat-list tight">
+                <div class="stat"><span>Score</span><strong id="consoleScore">—</strong></div>
+                <div class="stat"><span>Reports</span><strong id="consoleReports">—</strong></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Registration</h3>
+              <div class="stat-list">
+                <div class="stat"><span>Curator approved</span><strong id="consoleApproved">—</strong></div>
+                <div class="stat"><span>Vault registered</span><strong id="consoleRegistered">—</strong></div>
+                <div class="stat"><span>Locked stake</span><strong id="consoleStake">—</strong></div>
+                <div class="stat"><span>AUM cap</span><strong id="consoleCap">—</strong></div>
+              </div>
+              <details class="admin inline">
+                <summary>Advanced onboarding</summary>
+                <p class="hint">Already completed by the deploy script. Only use on a fresh deployment.</p>
+                <label>Stake amount (T0)<input id="stakeAmount" type="number" value="200" /></label>
+                <div class="inline-actions">
+                  <button id="stakeBtn" class="btn curator-only">Approve &amp; stake</button>
+                  <button id="approveCuratorBtn" class="btn curator-only">Bootstrap approve</button>
+                  <button id="registerVaultBtn" class="btn curator-only">Register vault</button>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <div class="panel-grid two">
+            <div class="card action-card">
+              <h3>Position management</h3>
+              <div class="field-row">
+                <label>Lower tick<input id="lowerTick" type="number" value="-60" /></label>
+                <label>Upper tick<input id="upperTick" type="number" value="60" /></label>
+              </div>
+              <label>Liquidity<input id="liq" type="number" value="100000000000000000000" /></label>
+              <div class="inline-actions">
+                  <button id="initializeBtn" class="btn btn-primary curator-only">Open position</button>
+                  <button id="rebalanceBtn" class="btn curator-only">Rebalance</button>
+
+              </div>
+              <p class="hint">Position active: <strong id="consolePosition">—</strong>. Liquidity must be a full integer.</p>
+            </div>
+
+            <div class="card action-card">
+              <h3>Fee escrow</h3>
+              <div class="escrow-amount"><span>Claimable</span><strong id="consoleClaimable">—</strong></div>
+              <div class="stat-list tight">
+                <div class="stat"><span>Total fees earned</span><strong id="consoleTotalFees">—</strong></div>
+                <div class="stat"><span>Fee rate</span><strong id="consoleFeeRate">—</strong></div>
+              </div>
+              <button id="claimFeesBtn" class="btn btn-primary full curator-only">Claim performance fees</button>
+            </div>
+          </div>
+
+          <div class="card action-card">
+            <h3>Market simulator</h3>
+            <p class="muted">Move the pool price with test tokens, then withdraw to see the reputation update.</p>
+            <div class="field-row">
+              <label>Direction
+                <select id="swapDirection">
+                  <option value="down">Price down (sell T0)</option>
+                  <option value="up">Price up (sell T1)</option>
+                </select>
+              </label>
+              <label>Swap amount<input id="swapAmount" type="number" value="50" /></label>
+            </div>
+            <button id="simulateBtn" class="btn btn-primary curator-only">Simulate price move</button>
+          </div>
+        </section>
+
+        <section id="page-activity" class="page">
+          <div class="page-head">
+            <div>
+              <h2>Activity</h2>
+              <p>Real on-chain events from the registry, vault, hook, and strategy.</p>
+            </div>
+            <span class="tag">Live logs</span>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3>Event feed</h3><p class="muted">Latest indexed events from recent blocks.</p></div><button id="refreshActivityBtn" class="btn small">Refresh</button></div>
+            <div id="activityFeed" class="activity-feed"><div class="activity-empty">Loading activity…</div></div>
+            <p class="hint">Reverts, epoch rollovers, and clawbacks are not emitted by these contracts, so they are not shown.</p>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Latest transaction</h3><p class="muted">Hash, receipt, and gas from your last write</p></div>
+              <span id="txStatus" class="tag">No activity</span>
+            </div>
+            <div id="txDetails" class="tx-details"><div class="activity-empty">No transaction yet.</div></div>
+          </div>
+
+          <details class="card admin">
+            <summary>Deployment settings</summary>
+            <p class="muted">Defaults point to the current Sepolia deployment.</p>
+            <div class="config-grid">
+              <label>Vault<input id="vaultAddr" value="0x1b45334925913bA2f48DFf2dDCe5E6a05f47d138" /></label>
+              <label>Hook<input id="hookAddr" value="0x9ea63C10324F2E448175f7102Dc59cF2F69Ecfc0" /></label>
+              <label>Strategy<input id="strategyAddr" value="0xA765D2F5Bb53daf46bD215b412623057BaEA9DC5" /></label>
+              <label>Registry<input id="registryAddr" value="0x77278f63c0F253F7255eEeB2305D5ea85f5EaF94" /></label>
+              <label>Token0<input id="token0Addr" value="0x0BfDc19147ae322E9f94711f903a07869E1cCefa" /></label>
+              <label>Token1<input id="token1Addr" value="0xF5f9989Ad5eCeA50c7706e1C3fce0e74051870eF" /></label>
+              <label>Swap helper<input id="swapHelperAddr" value="0x129aa3EF64AE6f881fDA1708e7A5BDE133df16C2" /></label>
+            </div>
+            <div class="inline-actions">
+              <button id="saveConfigBtn" class="btn btn-primary">Save &amp; load</button>
+              <button id="resetConfigBtn" class="btn">Use Sepolia defaults</button>
+            </div>
+          </details>
+        </section>
+      </main>
     </div>
-    <div class="header-actions">
-      <div id="network" class="badge">Not connected</div>
-      <button id="connectBtn" class="btn primary">Connect Wallet</button>
+  </div>
+
+  <div id="roleModal" class="role-modal" role="dialog" aria-modal="true" aria-labelledby="roleTitle" hidden>
+    <div class="role-dialog">
+      <div class="eyebrow">Workspace</div>
+      <h3 id="roleTitle">How are you using CuratorVault?</h3>
+      <p class="muted">Connected as <code id="roleWallet">—</code></p>
+      <div class="role-options">
+        <button id="roleDepositorBtn" class="role-option">
+          <span class="role-mark">D</span>
+          <strong>Depositor</strong>
+          <small>Browse curators, deposit, and manage your position.</small>
+        </button>
+        <button id="roleCuratorBtn" class="role-option">
+          <span class="role-mark">C</span>
+          <strong>Curator</strong>
+          <small>Manage the mandate, reputation, and fee escrow.</small>
+        </button>
+      </div>
+      <button id="roleCancelBtn" class="btn ghost">Back</button>
     </div>
-  </header>
+  </div>
 
-  <main>
-    <section id="configSection" class="card">
-      <h2>Contract Addresses</h2>
-      <p class="muted">Paste addresses from the deploy script output.</p>
-      <div class="grid">
-        <label>Vault<input id="vaultAddr" value="0x1b45334925913bA2f48DFf2dDCe5E6a05f47d138" /></label>
-        <label>Hook<input id="hookAddr" value="0x9ea63C10324F2E448175f7102Dc59cF2F69Ecfc0" /></label>
-        <label>Strategy<input id="strategyAddr" value="0xA765D2F5Bb53daf46bD215b412623057BaEA9DC5" /></label>
-        <label>Registry<input id="registryAddr" value="0x77278f63c0F253F7255eEeB2305D5ea85f5EaF94" /></label>
-        <label>Token0<input id="token0Addr" value="0x0BfDc19147ae322E9f94711f903a07869E1cCefa" /></label>
-        <label>Token1<input id="token1Addr" value="0xF5f9989Ad5eCeA50c7706e1C3fce0e74051870eF" /></label>
-      </div>
-      <button id="saveConfigBtn" class="btn">Save &amp; Load</button>
-      <button id="resetConfigBtn" class="btn">Use Sepolia Defaults</button>
-    </section>
-
-    <section class="grid-2">
-      <div class="card">
-        <h2>Vault Overview</h2>
-        <div class="stat"><span>Your shares</span><strong id="statShares">—</strong></div>
-        <div class="stat"><span>Total supply</span><strong id="statSupply">—</strong></div>
-        <div class="stat"><span>NAV / share</span><strong id="statNav">—</strong></div>
-        <div class="stat"><span>High-water mark</span><strong id="statHwm">—</strong></div>
-        <div class="stat"><span>HODL / share</span><strong id="statHodl">—</strong></div>
-        <div class="stat"><span>Alpha vs HODL</span><strong id="statAlpha">—</strong></div>
-        <div class="stat"><span>Performance fees</span><strong id="statFees">—</strong></div>
-        <div class="stat"><span>Claimable fees</span><strong id="statClaimable">—</strong></div>
-        <div class="stat"><span>Position active</span><strong id="statPosition">—</strong></div>
-      </div>
-
-      <div class="card">
-        <h2>Curator Reputation</h2>
-        <div class="stat"><span>Reputation score</span><strong id="statScore">—</strong></div>
-        <div class="stat"><span>Curator approved</span><strong id="statApproved">—</strong></div>
-        <div class="stat"><span>Stake</span><strong id="statStake">—</strong></div>
-        <div class="stat"><span>AUM cap</span><strong id="statAumCap">—</strong></div>
-        <div class="stat"><span>AUM utilization</span><strong id="statUtilization">—</strong></div>
-        <div class="stat"><span>Can accept deposits</span><strong id="statCanManage">—</strong></div>
-        <div class="stat"><span>Reports</span><strong id="statObservations">—</strong></div>
-        <div class="stat"><span>Base fee</span><strong id="statBaseFee">—</strong></div>
-        <div class="stat"><span>Max fee</span><strong id="statMaxFee">—</strong></div>
-        <div class="stat"><span>Pool EMA price</span><strong id="statEma">—</strong></div>
-        <div class="stat"><span>Liquidity events</span><strong id="statEvents">—</strong></div>
-      </div>
-    </section>
-
-    <section class="grid-3">
-      <div class="card">
-        <h2>Deposit</h2>
-        <label>Token0 amount<input id="deposit0" type="number" placeholder="10000" /></label>
-        <label>Token1 amount<input id="deposit1" type="number" placeholder="10000" /></label>
-        <button id="approve0Btn" class="btn">Approve Token0</button>
-        <button id="approve1Btn" class="btn">Approve Token1</button>
-        <button id="depositBtn" class="btn primary">Deposit</button>
-      </div>
-
-      <div class="card">
-        <h2>Withdraw</h2>
-        <label>Shares<input id="withdrawShares" type="number" placeholder="1000" /></label>
-        <button id="withdrawBtn" class="btn primary">Withdraw</button>
-      </div>
-
-      <div class="card">
-        <h2>Curator Actions</h2>
-        <label>Lower tick<input id="lowerTick" type="number" value="-60" /></label>
-        <label>Upper tick<input id="upperTick" type="number" value="60" /></label>
-        <label>Liquidity<input id="liq" type="number" placeholder="3e24" /></label>
-        <button id="initializeBtn" class="btn">Initialize Position</button>
-        <button id="rebalanceBtn" class="btn">Rebalance</button>
-        <button id="claimFeesBtn" class="btn">Claim Performance Fees</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Curator Onboarding</h2>
-      <p class="muted">Stake a locked bond, bootstrap approval, and register the vault. Performance reports then update reputation automatically on withdrawals.</p>
-      <label>Stake amount (Token0)<input id="stakeAmount" type="number" value="200" /></label>
-      <button id="stakeBtn" class="btn">Approve &amp; Stake</button>
-      <button id="approveCuratorBtn" class="btn">Bootstrap Approve</button>
-      <button id="registerVaultBtn" class="btn">Register Vault</button>
-    </section>
-
-    <div id="status" class="status"></div>
-  </main>
-
-  <script type="module" src="./app.js"></script>
+  <div id="status" class="status" aria-live="polite"></div>
+  <script type="module" src="./app.js?v=11"></script>
 </body>
 </html>
