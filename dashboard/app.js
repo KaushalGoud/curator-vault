@@ -32,6 +32,7 @@ const EXPLORER = "https://sepolia.etherscan.io";
 const ROLE_KEY = "cvRole";
 const TRACKED_KEY = "cvTrackedCurators";
 const SELECTED_KEY = "cvSelectedCurator";
+const ADMIN_MODE = new URLSearchParams(location.search).get("admin") === "1";
 const EVENT_SPECS = [
   { key: "registry", names: ["Staked", "CuratorApproved", "CuratorRevoked", "VaultRegistered", "ReputationUpdated"] },
   { key: "vault", names: ["Deposited", "Withdrawn", "PerformanceFeesClaimed"] },
@@ -330,7 +331,7 @@ function renderCuratorDirectory() {
       <td><span class="tier ${r.tier.cls}">${r.tier.name}</span></td>
       <td>Score ${r.score} · ${r.observations} reports</td>
       <td>${Number(r.perfFeeBps) / 100}% perf</td>
-      <td>Locked · no unlock</td>
+      <td>${pretty(r.stake)} T0</td>
       <td>${pretty(r.capLeft)}</td>
       <td><button class="btn small">View</button></td>`;
     row.onclick = () => selectCurator(r.address);
@@ -904,6 +905,7 @@ $("registerVaultBtn").onclick = async () => {
 
 loadConfig();
 loadTrackedCurators();
+if (!ADMIN_MODE) document.querySelectorAll(".admin-only").forEach((el) => { el.hidden = true; });
 if (window.ethereum) {
   provider = new BrowserProvider(window.ethereum);
   checkNetwork();

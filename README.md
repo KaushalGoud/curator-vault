@@ -96,7 +96,7 @@ Open `http://localhost:8080`. The app starts on a landing page; connect MetaMask
 
 - **Depositor** — Explore curators, Curator detail, and My position. NAV, alpha, tier, record, fee rate, vesting, deposit cap left, shares, and withdrawal.
 - **Curator** — Curator console. Tier progress, registration state, stake/reputation, mandate limits, fee escrow, market simulator, and collapsed onboarding controls.
-- **Activity** — shared by both roles; recent indexed on-chain events plus Deployment settings. Use **Use Sepolia Defaults** here if browser state is stale.
+- **Activity** — shared by both roles; recent indexed on-chain events and your latest transaction. Address settings are hidden unless the page is opened with `?admin=1`.
 
 Role selects the workspace only; on-chain permissions still decide who can manage or claim. **Switch role** changes the workspace without reconnecting, and **Disconnect** returns to the landing page. Reputation, stake, and AUM cap belong to the registered strategy address; performance-fee claims belong to the curator operator wallet. A non-operator curator view is read-only.
 
@@ -122,7 +122,8 @@ forge test -vv
 cd dashboard && python3 -m http.server 8080
 ```
 
-Paste the printed addresses into **Activity → Deployment settings**, connect MetaMask, choose **Depositor**, deposit from **Curator detail**, then use **My position**. Switch to **Curator** to open/rebalance the position and use **Market simulator** to move price. Switch back to **Depositor** and withdraw to trigger a reputation report, then show the score/AUM cap change on **Explore curators** and claim any performance fees from **Curator console**. On local Anvil, also deploy `src/mocks/SwapHelper.sol` with the PoolManager address and paste it into Deployment settings.
+Open `http://localhost:8080?admin=1`, paste the printed addresses into **Activity → Deployment settings**, then connect MetaMask, choose **Depositor**, deposit from **Curator detail**, and use **My position**.
+ Switch to **Curator** to open/rebalance the position and use **Market simulator** to move price. Switch back to **Depositor** and withdraw to trigger a reputation report, then show the score/AUM cap change on **Explore curators** and claim any performance fees from **Curator console**. On local Anvil, also deploy `src/mocks/SwapHelper.sol` with the PoolManager address and paste it into Deployment settings.
 
 ## Limitations
 
