@@ -57,6 +57,11 @@ function short(value) {
 }
 
 function isAddress(value) { return /^0x[a-fA-F0-9]{40}$/.test(String(value || "").trim()); }
+function sameAddress(a, b) { return String(a).toLowerCase() === String(b).toLowerCase(); }
+function hookFlags(address) {
+  const bits = Number(BigInt(address) & 0x3fffn);
+  return { hex: `0x${bits.toString(16).padStart(4, "0")}`, value: bits };
+}
 
 function loadTrackedCurators() {
   try {
@@ -447,6 +452,44 @@ function renderSparkline(series) {
   box.append(svg, summary);
 }
 
+function setSafetyItem(id, ok, text) {
+  $(`${id}Item`).className = `safety-item ${ok ? "good" : "warn"}`;
+  $(id).textContent = text;
+}
+
+function renderPoolSafety(data) {
+  const flags = hookFlags(cfg("hookAddr"));
+  const noReturnDelta = flags.value === 0xfc0;
+  const vaultOk = sameAddress(data.hookVault, cfg("vaultAddr")) && sameAddress(data.registeredVault, cfg("vaultAddr"));
+  const reporterOk = sameAddress(data.reporter, cfg("hookAddr"));
+  const registryOk = sameAddress(data.hookRegistry, cfg("registryAddr"));
+  const feesOk = data.maxFee > 0n && data.maxPerfFeeBps > 0n && data.perfFeeBps <= data.maxPerfFeeBps;
+  const manageOk = data.canManage;
+  setSafetyItem("safetyVault", vaultOk, `${short(data.hookVault)} / ${short(data.registeredVault)}`);
+  setSafetyItem("safetyReporter", reporterOk, short(data.reporter));
+  setSafetyItem("safetyRegistry", registryOk, `${short(data.hookRegistry)} · PM ${short(data.hookManager)}`);
+  setSafetyItem("safetyFlags", noReturnDelta, flags.hex);
+  setSafetyItem("safetyFees", feesOk, `${data.baseFee}–${data.maxFee} LP · ${Number(data.perfFeeBps) / 100}% perf`);
+  setSafetyItem("safetyManage", manageOk, manageOk ? "Allowed" : "Blocked");
+  const allOk = vaultOk && reporterOk && registryOk && noReturnDelta && feesOk && manageOk;
+  $("safetyStatus").textContent = allOk ? "Guardrails active" : "Review";
+  $("safetyStatus").className = `tag ${allOk ? "good" : "bad"}`.trim();
+}
+
+function renderDepositorProtection(data) {
+  const eligible = data.nav > data.hwm && data.nav > data.hodl;
+  const capPct = Number(data.maxPerfFeeBps) / 100;
+  $("protectGate").textContent = eligible ? "Fee eligible" : "No fee";
+  $("protectGate").className = `tag ${eligible ? "good" : ""}`.trim();
+  $("protectNav").textContent = pretty(data.nav);
+  $("protectHodl").textContent = pretty(data.hodl);
+  $("protectHwm").textContent = pretty(data.hwm);
+  $("protectAlpha").textContent = `${data.alpha.toString()} bps`;
+  $("protectAlpha").style.color = data.alpha > 0n ? "var(--positive)" : data.alpha < 0n ? "var(--danger)" : "var(--ink)";
+  $("protectFee").textContent = `${Number(data.perfFeeBps) / 100}%`;
+  $("protectFeeCap").textContent = `${capPct}%`;
+}
+
 async function refresh() {
   if (!requireConfig()) return;
   document.body.dataset.loading = "true";
@@ -463,7 +506,7 @@ async function refresh() {
       ? `Operator wallet recognized (${short(operatorAddr)}). Management and fee claims are enabled.`
       : `Read-only curator preview. Manage and claim require the operator wallet (${short(operatorAddr)}).`;
     document.querySelectorAll(".curator-only").forEach((b) => { b.disabled = !isCuratorOperator; });
-    const [shares, supply, nav, hwm, hodl, fees, claimable, position, score, approved, cap, stake, observations, baseFee, maxFee, ema, totalNav, registered, perfFeeBps, maxPerfFeeBps, maxRangeWidth, rebalanceCooldown, centerDrift, hookInterval, bal0, bal1] = await Promise.all([
+    const [shares, supply, nav, hwm, hodl, fees, claimable, position, score, approved, cap, stake, observations, baseFee, maxFee, ema, totalNav, registered, perfFeeBps, maxPerfFeeBps, maxRangeWidth, rebalanceCooldown, centerDrift, hookInterval, bal0, bal1, hookVault, hookRegistry, hookManager, reporter, registeredVault] = await Promise.all([
       c.vault.balanceOf(userAddress || "0x0000000000000000000000000000000000000001"),
       c.vault.totalSupply(),
       c.vault.navPerShare(),
@@ -490,8 +533,14 @@ async function refresh() {
       c.hook.minRebalanceInterval(),
       userAddress ? c.token0.balanceOf(userAddress) : 0n,
       userAddress ? c.token1.balanceOf(userAddress) : 0n,
+      c.hook.vault(),
+      c.hook.registry(),
+      c.hook.poolManager(),
+      c.registry.reporter(),
+      c.registry.vaultOf(strategyAddr),
     ]);
     const dynamicFee = await c.hook.computeFee(ema, ema);
+    const canManage = await c.hook.canManage(strategyAddr, cap);
 
     const capLeft = cap > totalNav ? cap - totalNav : 0n;
     const alpha = nav > hodl ? ((nav - hodl) * 10000n) / hodl : hodl > nav ? -((hodl - nav) * 10000n) / hodl : 0n;
@@ -502,6 +551,9 @@ async function refresh() {
     const holdingValue = (shares * hodl) / WAD;
     const valueDelta = positionValue - holdingValue;
     const perfFeePct = Number(perfFeeBps) / 100;
+
+    renderPoolSafety({ hookVault, hookRegistry, hookManager, reporter, registeredVault, canManage, baseFee, maxFee, perfFeeBps, maxPerfFeeBps });
+    renderDepositorProtection({ nav, hwm, hodl, alpha, perfFeeBps, maxPerfFeeBps });
 
     $("kpiNav").textContent = pretty(nav);
     $("kpiSupply").textContent = `Supply ${pretty(supply)}`;

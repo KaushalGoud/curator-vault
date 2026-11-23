@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./style.css?v=12" />
+  <link rel="stylesheet" href="./style.css?v=13" />
 </head>
 <body class="pre-app">
   <div class="shell">
@@ -123,6 +123,48 @@
               <span>AUM capacity</span>
               <strong id="kpiCap">—</strong>
               <small id="kpiUtil">Utilization —</small>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3>Pool safety</h3>
+                <p class="muted">Live guardrails read from the hook and registry</p>
+              </div>
+              <span id="safetyStatus" class="tag">Checking</span>
+            </div>
+            <div class="safety-grid">
+              <div id="safetyVaultItem" class="safety-item">
+                <span>Vault gate</span>
+                <strong id="safetyVault">—</strong>
+                <small>Only the registered vault can manage liquidity.</small>
+              </div>
+              <div id="safetyReporterItem" class="safety-item">
+                <span>Reporter</span>
+                <strong id="safetyReporter">—</strong>
+                <small>Only this hook reports performance.</small>
+              </div>
+              <div id="safetyRegistryItem" class="safety-item">
+                <span>Registry link</span>
+                <strong id="safetyRegistry">—</strong>
+                <small>Hook and app read the same registry.</small>
+              </div>
+              <div id="safetyFlagsItem" class="safety-item">
+                <span>Permission bits</span>
+                <strong id="safetyFlags">—</strong>
+                <small>No return-delta or upgradeable behavior.</small>
+              </div>
+              <div id="safetyFeesItem" class="safety-item">
+                <span>Fee caps</span>
+                <strong id="safetyFees">—</strong>
+                <small>LP and performance fees are bounded.</small>
+              </div>
+              <div id="safetyManageItem" class="safety-item">
+                <span>Mandate check</span>
+                <strong id="safetyManage">—</strong>
+                <small>Stake and approval are required to manage.</small>
+              </div>
             </div>
           </div>
 
@@ -292,6 +334,25 @@
             <div class="position-stat"><span>Your shares</span><strong id="posShares">—</strong><small id="posSupply">Vault supply —</small></div>
             <div class="position-stat"><span>Position value</span><strong id="posValue">—</strong><small>token0 equivalent</small></div>
             <div class="position-stat"><span>Value vs HODL</span><strong id="posDelta">—</strong><small id="posAlpha">Alpha —</small></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h3>Depositor protection</h3>
+                <p class="muted">Performance fees require beating the benchmark</p>
+              </div>
+              <span id="protectGate" class="tag">Checking</span>
+            </div>
+            <div class="protection-grid">
+              <div><span>NAV / share</span><strong id="protectNav">—</strong></div>
+              <div><span>HODL / share</span><strong id="protectHodl">—</strong></div>
+              <div><span>High-water mark</span><strong id="protectHwm">—</strong></div>
+              <div><span>Alpha vs HODL</span><strong id="protectAlpha">—</strong></div>
+              <div><span>Vault fee</span><strong id="protectFee">—</strong></div>
+              <div><span>Hook cap</span><strong id="protectFeeCap">—</strong></div>
+            </div>
+            <p class="hint">A fee is authorized only when NAV per share is above both the high-water mark and the HODL benchmark.</p>
           </div>
 
           <div class="panel-grid two">
@@ -482,6 +543,6 @@
   </div>
 
   <div id="status" class="status" aria-live="polite"></div>
-  <script type="module" src="./app.js?v=12"></script>
+  <script type="module" src="./app.js?v=13"></script>
 </body>
 </html>

@@ -48,7 +48,7 @@ forge build
 forge test -vv
 ```
 
-30 tests cover permission mining, wiring, registry staking/approval/revocation, reputation reporting, AUM caps, hook gating, fee claims, deposit/withdraw, position init, out-of-range withdrawal, dynamic fees, rebalance cooldown, HODL benchmark, high-water mark, and fuzz cases.
+28 tests cover permission mining, wiring, registry staking/approval/revocation, reputation reporting, AUM caps, hook gating, fee claims, deposit/withdraw, position init, out-of-range withdrawal, dynamic fees, rebalance cooldown, HODL benchmark, high-water mark, and fuzz cases.
 
 ## Deploy
 
@@ -92,16 +92,24 @@ cd dashboard
 python3 -m http.server 8080
 ```
 
+For hosted static deploy, publish `dashboard/` as the site root. Vercel and Netlify configs are included; GitHub Pages can use the root redirect to `dashboard/`.
+
 Open `http://localhost:8080`. The app starts on a landing page; connect MetaMask on Sepolia, then choose a workspace:
 
-- **Depositor** — Explore curators, Curator detail, and My position. NAV, alpha, tier, record, fee rate, vesting, deposit cap left, shares, and withdrawal.
-- **Curator** — Curator console. Tier progress, registration state, stake/reputation, mandate limits, fee escrow, market simulator, and collapsed onboarding controls.
+- **Depositor** — Explore curators, Curator detail, and My position. NAV, alpha, tier, record, fee rate, locked stake, deposit cap left, shares, and withdrawal.
+- **Curator** — Curator console. Tier progress, registration state, stake/reputation, mandate limits, fee escrow, market simulator, and admin-only onboarding controls.
 - **Activity** — shared by both roles; recent indexed on-chain events and your latest transaction. Address settings are hidden unless the page is opened with `?admin=1`.
 
 Role selects the workspace only; on-chain permissions still decide who can manage or claim. **Switch role** changes the workspace without reconnecting, and **Disconnect** returns to the landing page. Reputation, stake, and AUM cap belong to the registered strategy address; performance-fee claims belong to the curator operator wallet. A non-operator curator view is read-only.
 
-Tier, record, and vesting are UI interpretations of on-chain state, not additional contract fields.
- Tier is derived from reputation (`Seed` 40-49, `Active` 50-69, `Elite` 70+), record is score plus report count, and vesting is shown as `Locked · no unlock` because the demo stake has no withdrawal path. The activity feed only shows events the contracts actually emit; it does not invent reverted actions, epoch rollovers, or clawbacks.
+Tier and record are UI interpretations of on-chain state, not additional contract fields. Tier is derived from reputation (`Seed` 40-49, `Active` 50-69, `Elite` 70+), and record is score plus report count. The demo stake has no withdrawal path. The activity feed only shows events the contracts actually emit.
+
+Test tokens have a public `mint`. Replace `YOUR_WALLET` and mint both tokens before depositing:
+
+```sh
+cast send 0x0BfDc19147ae322E9f94711f903a07869E1cCefa "mint(address,uint256)" YOUR_WALLET 1000000000000000000000 --rpc-url "$RPC_URL" --private-key "0x${PRIVATE_KEY#0x}"
+cast send 0xF5f9989Ad5eCeA50c7706e1C3fce0e74051870eF "mint(address,uint256)" YOUR_WALLET 1000000000000000000000 --rpc-url "$RPC_URL" --private-key "0x${PRIVATE_KEY#0x}"
+```
 
 The market simulator uses the deployed `SwapHelper` to move the pool price with test tokens. After a simulated swap, withdraw shares to trigger a performance report and watch the reputation score and AUM cap update.
 

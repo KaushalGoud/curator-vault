@@ -1,6 +1,6 @@
 out/
 cache/
-brevis/app/node_modules/
-brevis/app/dist/
 .env
 *.log
+broadcast/*/*/run-[0-9]*.json
+broadcast/*/*/dry-run/
